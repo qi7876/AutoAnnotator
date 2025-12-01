@@ -1,0 +1,45 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+venv/
+env/
+
+# Environment variables and secrets
+config/.env
+.env
+
+# Output directories
+output/temp/
+output/final/
+logs/
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+
+# Dataset files (uncomment if you don't want to track datasets)
+# Dataset/
+
+# Uploaded files cache
+*.uploaded

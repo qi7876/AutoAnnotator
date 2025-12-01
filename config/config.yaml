@@ -1,0 +1,55 @@
+# AutoAnnotator Configuration
+
+# Gemini API Settings
+gemini:
+  model: "gemini-1.5-pro"
+  grounding_model: "gemini-2.0-flash-grounding-exp"
+  generation_config:
+    temperature: 0.2
+    top_p: 0.95
+    top_k: 40
+    max_output_tokens: 8192
+    response_mime_type: "application/json"
+
+  # Video processing settings
+  video:
+    upload_timeout_sec: 600
+    processing_timeout_sec: 300
+    fps_for_annotation: 10
+
+# Output settings
+output:
+  temp_dir: "output/temp"
+  final_dir: "output/final"
+  keep_temp_files: false
+
+# Task configuration
+tasks:
+  enabled:
+    - "ScoreboardSingle"
+    - "ScoreboardMultiple"
+    - "Objects_Spatial_Relationships"
+    - "Spatial_Temporal_Grounding"
+    - "Continuous_Actions_Caption"
+    - "Continuous_Events_Caption"
+    - "Object_Tracking"
+
+  # Task-specific configurations
+  scoreboard_single:
+    min_confidence: 0.7
+
+  scoreboard_multiple:
+    min_window_frames: 10
+
+  spatial_relationships:
+    min_objects: 2
+    max_objects: 5
+
+  tracking:
+    tracker_backend: "local"  # local or api
+
+# Logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/annotator.log"

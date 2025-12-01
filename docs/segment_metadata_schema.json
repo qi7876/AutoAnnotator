@@ -1,0 +1,25 @@
+{
+  "segment_id": "1_segment_001",
+  "original_video": {
+    "path": "Dataset/3x3_Basketball/Men/1.mp4",
+    "json_path": "Dataset/3x3_Basketball/Men/1.json",
+    "sport": "3x3_Basketball",
+    "event": "Men",
+    "video_id": "1"
+  },
+  "segment_info": {
+    "path": "Dataset/3x3_Basketball/Men/segments/1_segment_001.mp4",
+    "start_frame_in_original": 150,
+    "total_frames": 100,
+    "fps": 10,
+    "duration_sec": 10.0,
+    "resolution": [1920, 1080]
+  },
+  "tasks_to_annotate": [
+    "ScoreboardSingle",
+    "Continuous_Actions_Caption"
+  ],
+  "additional_info": {
+    "description": "片段包含运动员投篮动作"
+  }
+}
