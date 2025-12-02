@@ -331,7 +331,7 @@ This project is part of a multimodal benchmark research effort. For collaboratio
 
 ## License
 
-[Add license information]
+MIT
 
 ## Acknowledgments
 
