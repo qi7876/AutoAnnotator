@@ -1,0 +1,48 @@
+{
+    "sport": "Athletics",
+    "event": "Men's_100m",
+    "video_id": "1",
+    "info": "长视频",
+    "video_metadata": {
+        "duration_sec": 802.0,
+        "fps": 10,
+        "total_frames": 8020,
+        "resolution": [
+            1920,
+            1080
+        ]
+    },
+    "annotations": [
+        {
+            "annotation_id": "1",
+            "task_L1": "Understanding",
+            "task_L2": "ScoreboardMultiple",
+            "question": "奥运会冠军在本次比赛突破了自己个人最好成绩多少秒",
+            "Q_window_frame": [
+                [
+                    1134,
+                    1135
+                ],
+                [
+                    7253,
+                    7254
+                ]
+            ],
+            "answer": "0.04"
+        },
+        {
+            "annotation_id": "2",
+            "task_L1": "Understanding",
+            "task_L2": "Scoreboard_Single",
+            "timestamp_frame": 7253,
+            "question": "本次比赛的奥运会冠军是谁",
+            "answer": "拉莫斯",
+            "bounding_box": [
+                180,
+                480,
+                917,
+                980
+            ]
+        }
+    ]
+}
