@@ -6,8 +6,10 @@ working on bounding box detection and grounding.
 """
 
 import logging
+from . import gemini_client
 from pathlib import Path
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional
+
 
 from PIL import Image
 
@@ -90,9 +92,10 @@ class BBoxAnnotator:
     with bounding boxes using natural language descriptions.
     """
 
-    def __init__(self):
+    def __init__(self,client: gemini_client.GeminiClient):
         """Initialize bounding box annotator."""
         logger.info("Initialized BBoxAnnotator")
+        self.client = client
 
     def annotate_single_object(
         self,
@@ -122,11 +125,46 @@ class BBoxAnnotator:
             >>> print(bbox.to_list())
             [100, 50, 300, 150]
         """
-        raise NotImplementedError(
-            "annotate_single_object() needs to be implemented. "
-            "This should use a grounding model (e.g., Gemini grounding, "
-            "Grounding DINO) to detect the object based on the description."
+       # Prepare image bytes and mime type
+        if isinstance(image, Path):
+            img = Image.open(image)
+            image_bytes = image.read_bytes()
+            mime_type = f"image/{img.format.lower() if img.format else 'jpeg'}"
+        elif isinstance(image, Image.Image):
+            img = image
+            import io
+            buf = io.BytesIO()
+            format = img.format if img.format else "JPEG"
+            img.save(buf, format=format)
+            image_bytes = buf.getvalue()
+            mime_type = f"image/{img.format.lower() if img.format else 'jpeg'}"
+        else:
+            raise ValueError("image must be a Path or PIL.Image.Image object")
+
+        width, height = img.size
+
+        # call grounding model to get normalized bbox
+        bbox_norm = self.client.ground_bounding_box(
+            image_bytes=image_bytes,
+            mime_type=mime_type,
+            description=description,
+            task_type="single_box"
         )
+
+        # convert normalized bbox to pixel bbox
+        xtl_norm, ytl_norm, xbr_norm, ybr_norm = bbox_norm
+        bbox = BoundingBox.from_normalized(
+            xtl_norm=xtl_norm,
+            ytl_norm=ytl_norm,
+            xbr_norm=xbr_norm,
+            ybr_norm=ybr_norm,
+            image_width=width,
+            image_height=height
+        )
+
+        return bbox
+    
+
 
     def annotate_multiple_objects(
         self,
@@ -160,10 +198,50 @@ class BBoxAnnotator:
             [100, 200, 200, 400]
             [300, 250, 400, 450]
         """
-        raise NotImplementedError(
-            "annotate_multiple_objects() needs to be implemented. "
-            "This should detect all objects based on their descriptions."
+        # Prepare image bytes and mime type
+        if isinstance(image, Path):
+            img = Image.open(image)
+            image_bytes = image.read_bytes()
+            mime_type = f"image/{img.format.lower() if img.format else 'jpeg'}"
+        elif isinstance(image, Image.Image):
+            img = image
+            import io
+            buf = io.BytesIO()
+            format = img.format if img.format else "JPEG"
+            img.save(buf, format=format)
+            image_bytes = buf.getvalue()
+            mime_type = f"image/{img.format.lower() if img.format else 'jpeg'}"
+        else:
+            raise ValueError("image must be a Path or PIL.Image.Image object")
+
+        width, height = img.size
+
+        
+        discription = "\n".join(descriptions)
+        normalized_bboxes_list = self.client.ground_bounding_box(
+            image_bytes=image_bytes,
+            mime_type=mime_type,
+            description=discription,
+            task_type="multiple_boxes"
         )
+        # normalized_bboxes_list is expected to be a List[Tuple[float, float, float, float]]
+
+        # Convert normalized bboxes to pixel bboxes
+        bboxes: List[BoundingBox] = []
+        for bbox_norm in normalized_bboxes_list:
+            xtl_norm, ytl_norm, xbr_norm, ybr_norm = bbox_norm
+            bbox = BoundingBox.from_normalized(
+                xtl_norm=xtl_norm,
+                ytl_norm=ytl_norm,
+                xbr_norm=xbr_norm,
+                ybr_norm=ybr_norm,
+                image_width=width,
+                image_height=height
+            )
+            bboxes.append(bbox)
+
+        return bboxes
+    
 
     def extract_frame_from_video(
         self,
