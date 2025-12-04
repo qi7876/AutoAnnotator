@@ -2,8 +2,9 @@
 
 # Gemini API Settings
 gemini:
-  model: "gemini-1.5-pro"
-  grounding_model: "gemini-2.0-flash-grounding-exp"
+  model: "gemini-2.5-flash"
+  grounding_model: "gemini-robotics-er-1.5-preview"
+  video_sampling_fps: 10
   generation_config:
     temperature: 0.2
     top_p: 0.95

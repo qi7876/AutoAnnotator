@@ -12,10 +12,11 @@ from pydantic import BaseModel, Field, validator
 class GeminiConfig(BaseModel):
     """Gemini API configuration."""
 
-    model: str = "gemini-1.5-pro"
-    grounding_model: str = "gemini-2.0-flash-grounding-exp"
+    model: str = "gemini-2.5-flash"
+    grounding_model: str = "gemini-robotics-er-1.5-preview"
     generation_config: Dict[str, Any] = Field(default_factory=dict)
     video: Dict[str, Any] = Field(default_factory=dict)
+    video_sampling_fps: int = 1
 
 
 class OutputConfig(BaseModel):

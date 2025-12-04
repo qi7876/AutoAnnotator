@@ -1,14 +1,14 @@
 """Gemini API client for video annotation."""
 
 import json
+import os
 import logging
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-import google.generativeai as genai
-from google.generativeai import upload_file, get_file
-from google.generativeai.types import HarmCategory, HarmBlockThreshold
+from google import genai
+from google.genai import types
 
 from ..config import get_config
 
@@ -22,29 +22,14 @@ class GeminiClient:
         """Initialize Gemini client."""
         self.config = get_config()
 
-        # Configure API
-        genai.configure(api_key=self.config.api_key)
+        self.client = genai.Client(api_key=self.config.api_key)
+        self.model_name = self.config.gemini.model
+        self.grounding_model_name = self.config.gemini.grounding_model
 
-        # Initialize models
-        self.model = genai.GenerativeModel(
-            model_name=self.config.gemini.model,
-            generation_config=self.config.gemini.generation_config,
-        )
+        self.generation_config = self.config.gemini.generation_config
 
-        # Grounding model for bounding box detection
-        self.grounding_model = genai.GenerativeModel(
-            model_name=self.config.gemini.grounding_model
-        )
-
-        # Safety settings - disable blocking for annotation tasks
-        self.safety_settings = {
-            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-        }
-
-        logger.info(f"Initialized Gemini client with model: {self.config.gemini.model}")
+        logger.info(f"Initialized Gemini client with model: {self.model_name}")
+        logger.info(f"Initialized Gemini client with grounding model: {self.grounding_model_name}")
 
     def upload_video(self, video_path: Path) -> Any:
         """
@@ -66,13 +51,8 @@ class GeminiClient:
         logger.info(f"Uploading video: {video_path}")
 
         try:
-            # Upload file
-            video_file = upload_file(
-                path=str(video_path),
-                display_name=video_path.name
-            )
-
-            logger.info(f"Uploaded file '{video_file.display_name}' as: {video_file.uri}")
+            video_file = self.client.files.upload(file=video_path)
+            logger.info(f"Uploaded file '{video_file.name}' as: {video_file.uri}")
 
             # Wait for file to be processed
             timeout = self.config.gemini.video["upload_timeout_sec"]
@@ -86,7 +66,7 @@ class GeminiClient:
 
                 logger.info("Waiting for video processing...")
                 time.sleep(2)
-                video_file = get_file(video_file.name)
+                video_file = self.client.files.get(name=video_file.name)
 
             if video_file.state.name == "FAILED":
                 raise ValueError(f"Video processing failed: {video_file.state}")
@@ -114,9 +94,22 @@ class GeminiClient:
         logger.info(f"Uploading image: {image_path}")
 
         try:
-            image_file = upload_file(
-                path=str(image_path),
-                display_name=image_path.name
+            MIME_MAP = {
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".png": "image/png",
+                ".webp": "image/webp",
+                ".gif": "image/gif",
+                ".bmp": "image/bmp",
+                ".tiff": "image/tiff",
+            }
+
+            ext = os.path.splitext(image_path)[1].lower()
+
+            mime_type = MIME_MAP.get(ext, "application/octet-stream")  # 默认值
+            image_file = self.client.files.upload(
+                file=image_path,
+                mime_type=mime_type
             )
             logger.info(f"Uploaded image as: {image_file.uri}")
             return image_file
@@ -151,11 +144,19 @@ class GeminiClient:
         logger.info("Generating annotation...")
 
         try:
-            # Generate content
-            response = self.model.generate_content(
-                [video_file, prompt],
-                safety_settings=self.safety_settings,
-                request_options={"timeout": timeout}
+
+            video_file_uri = video_file.uri
+            video_part = types.Part.from_uri(
+                file_uri=video_file_uri,
+                mime_type="video/mp4"
+            )
+            video_part.video_metadata = types.VideoMetadata(
+                fps=self.config.gemini.video_sampling_fps
+            )
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[video_part, prompt],
+                config=self.generation_config
             )
 
             # Parse JSON response
@@ -186,9 +187,10 @@ class GeminiClient:
         logger.info("Generating image annotation...")
 
         try:
-            response = self.model.generate_content(
-                [image_file, prompt],
-                safety_settings=self.safety_settings,
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[image_file, prompt],
+                config=self.generation_config,
             )
 
             result = self._parse_json_response(response.text)
@@ -202,15 +204,19 @@ class GeminiClient:
 
     def ground_bounding_box(
         self,
-        image_file: Any,
-        description: str
+        image_bytes: bytes,
+        mime_type: str,
+        description: str,
+        task_type: str
     ) -> List[float]:
         """
         Generate bounding box coordinates using grounding model.
 
-        Args:
-            image_file: Uploaded image file object
-            description: Natural language description of the object
+            Args:
+                image_bytes: Bytes of the image
+                mime_type: MIME type of the image
+                description: Natural language description of the object
+                task_type: Type of task (single_box or multiple_boxes)
 
         Returns:
             Bounding box coordinates [xtl, ytl, xbr, ybr] normalized to [0, 1000]
@@ -219,14 +225,70 @@ class GeminiClient:
             This is a placeholder interface. The actual implementation
             will be completed by your colleague working on bounding box annotation.
         """
-        logger.info(f"Generating bounding box for: {description}")
+        """
+        Generate bounding box coordinates using grounding model.
 
-        # TODO: Implement actual grounding logic
-        # This should call the Gemini grounding model and return coordinates
-        raise NotImplementedError(
-            "Bounding box grounding not yet implemented. "
-            "To be completed by colleague working on bounding box annotation."
-        )
+        Args:
+            image_bytes: Image content as bytes.
+            mime_type: The MIME type of the image (e.g., "image/jpeg").
+            description: Natural language description of the object.
+
+        Returns:
+            Bounding box coordinates [xtl, ytl, xbr, ybr] normalized to [0, 1000].
+        
+        Raises:
+            RuntimeError: If model response is invalid or parsing fails.
+        """
+        logger.info(f"Generating bounding box for: {description}")
+        MODEL_ID = self.grounding_model_name
+        client = self.client
+
+        if task_type == "single_box":   
+            prompt = f"""
+                Detect a single object that matches this description: "{description}".
+                Return a JSON array with exactly one element, containing only the bounding box coordinates:
+                [{{"box_2d": [xtl, ytl, xbr, ybr]}}]
+                Coordinates are normalized in the range 0-1000. Do not return masks, labels, or extra objects.
+                """
+        elif task_type == "multiple_boxes":
+            prompt = f"""
+                Detect all objects that match this description: "{description}".
+                Return a JSON array with one or more elements, each containing the bounding box coordinates:
+                [{{"box_2d": [xtl, ytl, xbr, ybr]}}]
+                Coordinates are normalized in the range 0-1000. Do not return masks, labels, or extra objects.
+                """
+        else:
+            raise ValueError(f"Invalid task type: {task_type}")
+
+        try:
+            # Call grounding model using the core client
+            image_response = client.models.generate_content(
+                model=MODEL_ID,
+                contents=[types.Part.from_bytes(data=image_bytes, mime_type=mime_type), prompt],
+                config=types.GenerateContentConfig(temperature=0, thinking_config=types.ThinkingConfig(thinking_budget=0))
+            )
+
+            # parse response
+            try:
+                data = self._parse_json_response(image_response.text)
+            except json.JSONDecodeError as e:
+                raise RuntimeError(f"Failed to parse model response: {e}\nResponse text: {image_response.text}")
+
+            # extract bounding box
+            if task_type == "single_box":
+                if not data or not isinstance(data, list) or len(data) != 1:
+                    raise RuntimeError(f"Unexpected response format: {image_response.text}")
+                bbox_norm = data[0]["box_2d"]
+                return bbox_norm
+            elif task_type == "multiple_boxes":
+                if not data or not isinstance(data, list):
+                    raise RuntimeError(f"Unexpected response format: {image_response.text}")
+                bbox_norms = [box["box_2d"] for box in data if "box_2d" in box]
+                return bbox_norms
+
+        except Exception as e:
+            logger.error(f"Failed to generate bounding box: {e}")
+            raise
 
     def _parse_json_response(self, response_text: str) -> Dict[str, Any]:
         """
@@ -266,7 +328,7 @@ class GeminiClient:
             file_obj: Uploaded file object
         """
         try:
-            file_obj.delete()
+            self.client.files.delete(name=file_obj.name)
             logger.info(f"Deleted file: {file_obj.name}")
         except Exception as e:
             logger.warning(f"Failed to delete file: {e}")
