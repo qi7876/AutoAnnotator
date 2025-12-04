@@ -61,15 +61,11 @@ class ScoreboardSingleAnnotator(BaseAnnotator):
 
                 # TODO: Use bbox_annotator to generate actual bounding box
                 # For now, keep the description
-                # bbox = self.bbox_annotator.annotate_single_object(
-                #     frame_path, bbox_description
-                # )
-                # result["bounding_box"] = bbox.to_list()
-
-                logger.warning(
-                    "Bounding box annotation not implemented. "
-                    "Keeping natural language description."
+                bbox = self.bbox_annotator.annotate_single_object(
+                    frame_path, bbox_description
                 )
+                result["bounding_box"] = bbox.to_list()
+                result.setdefault("_debug", {})["frame_path"] = str(frame_path)
 
             # Add metadata
             result = self.add_metadata_fields(result)
