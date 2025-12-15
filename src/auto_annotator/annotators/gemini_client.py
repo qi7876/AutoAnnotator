@@ -161,6 +161,9 @@ class GeminiClient:
 
             # Parse JSON response
             result = self._parse_json_response(response.text)
+            
+            # Save raw response for debugging
+            self.last_annotation_raw = response.text
 
             logger.info("Annotation generated successfully")
             return result
