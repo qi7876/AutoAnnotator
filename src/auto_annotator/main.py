@@ -44,7 +44,8 @@ def process_segment(
     prompt_loader: PromptLoader,
     bbox_annotator: BBoxAnnotator,
     tracker: ObjectTracker,
-    output_dir: Path
+    output_dir: Path,
+    dataset_root: Path
 ) -> Path:
     """
     Process a single segment.
@@ -56,6 +57,7 @@ def process_segment(
         bbox_annotator: Bounding box annotator
         tracker: Object tracker
         output_dir: Output directory for results
+        dataset_root: Root directory of the dataset
 
     Returns:
         Path to output JSON file
@@ -64,7 +66,10 @@ def process_segment(
     logger.info(f"Processing segment: {segment_metadata.segment_id}")
 
     # Validate segment metadata
-    is_valid, error = InputAdapter.validate_metadata(segment_metadata)
+    is_valid, error = InputAdapter.validate_metadata(
+        segment_metadata,
+        dataset_root=dataset_root
+    )
     if not is_valid:
         logger.error(f"Invalid segment metadata: {error}")
         raise ValueError(f"Invalid segment metadata: {error}")
@@ -86,7 +91,7 @@ def process_segment(
             )
 
             # Perform annotation
-            annotation = annotator.annotate(segment_metadata)
+            annotation = annotator.annotate(segment_metadata, dataset_root=dataset_root)
 
             # Validate annotation
             is_valid, error = annotator.validate_annotation(annotation)
@@ -112,7 +117,6 @@ def process_segment(
         "original_video": {
             "sport": segment_metadata.original_video.sport,
             "event": segment_metadata.original_video.event,
-            "video_id": segment_metadata.original_video.video_id,
         },
         "annotations": annotations
     }
@@ -164,7 +168,8 @@ def process_segments_batch(
                 prompt_loader=prompt_loader,
                 bbox_annotator=bbox_annotator,
                 tracker=tracker,
-                output_dir=output_dir
+                output_dir=output_dir,
+                dataset_root=config.dataset_root
             )
 
             successful += 1

@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from ..adapters import SegmentMetadata
 from ..utils import PromptLoader, VideoUtils
@@ -32,13 +32,17 @@ class ScoreboardSingleAnnotator(BaseAnnotator):
     def get_task_l1(self) -> str:
         return "Understanding"
 
-    def annotate(self, segment_metadata: SegmentMetadata) -> Dict[str, Any]:
+    def annotate(
+        self,
+        segment_metadata: SegmentMetadata,
+        dataset_root: Optional[Path] = None
+    ) -> Dict[str, Any]:
         """Annotate scoreboard in a single frame."""
         logger.info(f"Annotating {self.task_name} for {segment_metadata.segment_id}")
 
         # Upload video
         video_file = self.gemini_client.upload_video(
-            segment_metadata.get_video_path()
+            segment_metadata.get_video_path(dataset_root)
         )
 
         try:
@@ -55,12 +59,11 @@ class ScoreboardSingleAnnotator(BaseAnnotator):
                 # Extract frame from video
                 timestamp_frame = result.get("timestamp_frame", 0)
                 frame_path = VideoUtils.extract_frame(
-                    segment_metadata.get_video_path(),
+                    segment_metadata.get_video_path(dataset_root),
                     timestamp_frame
                 )
 
-                # TODO: Use bbox_annotator to generate actual bounding box
-                # For now, keep the description
+                # Use bbox_annotator to generate actual bounding box
                 bbox = self.bbox_annotator.annotate_single_object(
                     frame_path, bbox_description
                 )
@@ -87,13 +90,17 @@ class ScoreboardMultipleAnnotator(BaseAnnotator):
     def get_task_l1(self) -> str:
         return "Understanding"
 
-    def annotate(self, segment_metadata: SegmentMetadata) -> Dict[str, Any]:
+    def annotate(
+        self,
+        segment_metadata: SegmentMetadata,
+        dataset_root: Optional[Path] = None
+    ) -> Dict[str, Any]:
         """Annotate scoreboard changes across multiple frames."""
         logger.info(f"Annotating {self.task_name} for {segment_metadata.segment_id}")
 
         # Upload video
         video_file = self.gemini_client.upload_video(
-            segment_metadata.get_video_path()
+            segment_metadata.get_video_path(dataset_root)
         )
 
         try:
@@ -131,13 +138,17 @@ class ObjectsSpatialRelationshipsAnnotator(BaseAnnotator):
     def get_task_l1(self) -> str:
         return "Understanding"
 
-    def annotate(self, segment_metadata: SegmentMetadata) -> Dict[str, Any]:
+    def annotate(
+        self,
+        segment_metadata: SegmentMetadata,
+        dataset_root: Optional[Path] = None
+    ) -> Dict[str, Any]:
         """Annotate spatial relationships between objects."""
         logger.info(f"Annotating {self.task_name} for {segment_metadata.segment_id}")
 
         # Upload video
         video_file = self.gemini_client.upload_video(
-            segment_metadata.get_video_path()
+            segment_metadata.get_video_path(dataset_root)
         )
 
         try:
@@ -154,7 +165,7 @@ class ObjectsSpatialRelationshipsAnnotator(BaseAnnotator):
                 # Extract frame
                 timestamp_frame = result.get("timestamp_frame", 0)
                 frame_path = VideoUtils.extract_frame(
-                    segment_metadata.get_video_path(),
+                    segment_metadata.get_video_path(dataset_root),
                     timestamp_frame
                 )
 
@@ -202,13 +213,17 @@ class SpatialTemporalGroundingAnnotator(BaseAnnotator):
     def get_task_l1(self) -> str:
         return "Understanding"
 
-    def annotate(self, segment_metadata: SegmentMetadata) -> Dict[str, Any]:
+    def annotate(
+        self,
+        segment_metadata: SegmentMetadata,
+        dataset_root: Optional[Path] = None
+    ) -> Dict[str, Any]:
         """Annotate spatial-temporal grounding."""
         logger.info(f"Annotating {self.task_name} for {segment_metadata.segment_id}")
 
         # Upload video
         video_file = self.gemini_client.upload_video(
-            segment_metadata.get_video_path()
+            segment_metadata.get_video_path(dataset_root)
         )
 
         try:
@@ -226,7 +241,7 @@ class SpatialTemporalGroundingAnnotator(BaseAnnotator):
                 # Extract first frame of answer window
                 first_frame = a_window[0]
                 frame_path = VideoUtils.extract_frame(
-                    segment_metadata.get_video_path(),
+                    segment_metadata.get_video_path(dataset_root),
                     first_frame
                 )
 
@@ -236,7 +251,7 @@ class SpatialTemporalGroundingAnnotator(BaseAnnotator):
                 # )
                 #
                 # tracking_result = self.tracker.track_from_first_bbox(
-                #     segment_metadata.get_video_path(),
+                #     segment_metadata.get_video_path(dataset_root),
                 #     first_bbox,
                 #     a_window[0],
                 #     a_window[1]
@@ -271,13 +286,17 @@ class ContinuousActionsCaptionAnnotator(BaseAnnotator):
     def get_task_l1(self) -> str:
         return "Understanding"
 
-    def annotate(self, segment_metadata: SegmentMetadata) -> Dict[str, Any]:
+    def annotate(
+        self,
+        segment_metadata: SegmentMetadata,
+        dataset_root: Optional[Path] = None
+    ) -> Dict[str, Any]:
         """Annotate continuous actions."""
         logger.info(f"Annotating {self.task_name} for {segment_metadata.segment_id}")
 
         # Upload video
         video_file = self.gemini_client.upload_video(
-            segment_metadata.get_video_path()
+            segment_metadata.get_video_path(dataset_root)
         )
 
         try:
@@ -316,13 +335,17 @@ class ContinuousEventsCaptionAnnotator(BaseAnnotator):
     def get_task_l1(self) -> str:
         return "Understanding"
 
-    def annotate(self, segment_metadata: SegmentMetadata) -> Dict[str, Any]:
+    def annotate(
+        self,
+        segment_metadata: SegmentMetadata,
+        dataset_root: Optional[Path] = None
+    ) -> Dict[str, Any]:
         """Annotate continuous events."""
         logger.info(f"Annotating {self.task_name} for {segment_metadata.segment_id}")
 
         # Upload video
         video_file = self.gemini_client.upload_video(
-            segment_metadata.get_video_path()
+            segment_metadata.get_video_path(dataset_root)
         )
 
         try:
@@ -372,13 +395,17 @@ class ObjectTrackingAnnotator(BaseAnnotator):
     def get_task_l1(self) -> str:
         return "Perception"
 
-    def annotate(self, segment_metadata: SegmentMetadata) -> Dict[str, Any]:
+    def annotate(
+        self,
+        segment_metadata: SegmentMetadata,
+        dataset_root: Optional[Path] = None
+    ) -> Dict[str, Any]:
         """Annotate object tracking."""
         logger.info(f"Annotating {self.task_name} for {segment_metadata.segment_id}")
 
         # Upload video
         video_file = self.gemini_client.upload_video(
-            segment_metadata.get_video_path()
+            segment_metadata.get_video_path(dataset_root)
         )
 
         try:
@@ -396,7 +423,7 @@ class ObjectTrackingAnnotator(BaseAnnotator):
                 # Extract first frame
                 first_frame = q_window[0]
                 frame_path = VideoUtils.extract_frame(
-                    segment_metadata.get_video_path(),
+                    segment_metadata.get_video_path(dataset_root),
                     first_frame
                 )
 

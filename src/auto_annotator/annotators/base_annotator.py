@@ -56,13 +56,15 @@ class BaseAnnotator(ABC):
     @abstractmethod
     def annotate(
         self,
-        segment_metadata: SegmentMetadata
+        segment_metadata: SegmentMetadata,
+        dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """
         Perform annotation for this task.
 
         Args:
             segment_metadata: Segment metadata
+            dataset_root: Root directory of the dataset
 
         Returns:
             Annotation result dictionary

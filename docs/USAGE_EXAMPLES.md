@@ -1,10 +1,18 @@
-# Usage Examples
+# 使用示例
 
-This document provides detailed examples of how to use AutoAnnotator in various scenarios.
+本文档提供 AutoAnnotator 在各种场景下的详细使用示例。
 
-## Basic Usage
+## 📚 目录
 
-### Example 1: Annotating a Single Segment
+- [基础使用](#基础使用)
+- [任务专用示例](#任务专用示例)
+- [高级用法](#高级用法)
+- [批量处理](#批量处理)
+- [自定义配置](#自定义配置)
+
+## 基础使用
+
+### 示例 1：标注单个片段
 
 ```python
 from pathlib import Path
@@ -18,87 +26,95 @@ from auto_annotator.annotators.bbox_annotator import BBoxAnnotator
 from auto_annotator.annotators.tracker import ObjectTracker
 from auto_annotator.config import get_config
 
-# Setup
+# 初始化配置和组件
 config = get_config()
 gemini_client = GeminiClient()
 prompt_loader = PromptLoader()
-bbox_annotator = BBoxAnnotator()
+bbox_annotator = BBoxAnnotator(gemini_client)
 tracker = ObjectTracker()
 output_dir = Path("output/temp")
 
-# Load segment
+# 加载片段元数据
 segment_metadata = InputAdapter.load_from_json(
-    Path("segments/basketball_segment_001.json")
+    Path("Dataset/Archery/Men's_Individual/singleframes_dir/5.json")
 )
 
-# Process
+# 处理标注
 output_path = process_segment(
     segment_metadata=segment_metadata,
     gemini_client=gemini_client,
     prompt_loader=prompt_loader,
     bbox_annotator=bbox_annotator,
     tracker=tracker,
-    output_dir=output_dir
+    output_dir=output_dir,
+    dataset_root=config.dataset_root
 )
 
-print(f"Annotations saved to: {output_path}")
+print(f"标注结果已保存到: {output_path}")
 ```
 
-### Example 2: Batch Processing Multiple Segments
+### 示例 2：批量处理多个片段
 
 ```python
 from pathlib import Path
 from auto_annotator.main import process_segments_batch
 
-# Process all segments in a directory
-segments_dir = Path("segments/3x3_Basketball/Men")
+# 处理目录中的所有片段
+segments_dir = Path("Dataset/3x3_Basketball/Men/segment_dir")
 output_dir = Path("output/temp")
 
+# 批量处理
 process_segments_batch(
     segment_paths=list(segments_dir.glob("*.json")),
     output_dir=output_dir
 )
+
+print("批量标注完成！")
 ```
 
-### Example 3: Processing Specific Tasks Only
+### 示例 3：只处理特定任务
 
 ```python
+from pathlib import Path
 from auto_annotator import InputAdapter
 
-# Load segment metadata
+# 加载片段元数据
 segment_metadata = InputAdapter.load_from_json(
-    Path("segments/segment_001.json")
+    Path("Dataset/Archery/Men's_Individual/segment_dir/1_split_1_start_000292.json")
 )
 
-# Filter to only specific tasks
+# 只标注计分板理解任务
 segment_metadata.tasks_to_annotate = [
-    "ScoreboardSingle",
-    "Continuous_Actions_Caption"
+    "ScoreboardSingle"
 ]
 
-# Then process as normal...
+# 然后正常处理...
 ```
 
-## Working with Individual Tasks
+## 任务专用示例
 
-### Example 4: Scoreboard Understanding (Single Frame)
+### 示例 4：计分板理解（单帧）
 
 ```python
+from pathlib import Path
 from auto_annotator import (
     TaskAnnotatorFactory,
     GeminiClient,
-    PromptLoader
+    PromptLoader,
+    InputAdapter
 )
 from auto_annotator.annotators.bbox_annotator import BBoxAnnotator
 from auto_annotator.annotators.tracker import ObjectTracker
+from auto_annotator.config import get_config
 
-# Initialize
+# 初始化
+config = get_config()
 gemini_client = GeminiClient()
 prompt_loader = PromptLoader()
-bbox_annotator = BBoxAnnotator()
+bbox_annotator = BBoxAnnotator(gemini_client)
 tracker = ObjectTracker()
 
-# Create annotator
+# 创建计分板单帧标注器
 annotator = TaskAnnotatorFactory.create_annotator(
     task_name="ScoreboardSingle",
     gemini_client=gemini_client,
@@ -107,18 +123,47 @@ annotator = TaskAnnotatorFactory.create_annotator(
     tracker=tracker
 )
 
-# Annotate
-result = annotator.annotate(segment_metadata)
+# 加载单帧元数据
+segment_metadata = InputAdapter.load_from_json(
+    Path("Dataset/Archery/Men's_Individual/singleframes_dir/5.json")
+)
 
-print(f"Question: {result['question']}")
-print(f"Answer: {result['answer']}")
-print(f"Bounding box: {result['bounding_box']}")
+# 执行标注
+annotation = annotator.annotate(
+    segment_metadata,
+    dataset_root=config.dataset_root
+)
+
+print("标注结果:")
+print(f"  任务: {annotation['task_L2']}")
+print(f"  问题: {annotation['question']}")
+print(f"  答案: {annotation['answer']}")
+if 'bounding_box' in annotation:
+    print(f"  边界框: {annotation['bounding_box']}")
 ```
 
-### Example 5: Continuous Actions Caption
+### 示例 5：连续动作描述
 
 ```python
-# Create annotator for continuous actions
+from pathlib import Path
+from auto_annotator import (
+    TaskAnnotatorFactory,
+    GeminiClient,
+    PromptLoader,
+    InputAdapter
+)
+from auto_annotator.annotators.bbox_annotator import BBoxAnnotator
+from auto_annotator.annotators.tracker import ObjectTracker
+from auto_annotator.config import get_config
+
+# 初始化
+config = get_config()
+gemini_client = GeminiClient()
+prompt_loader = PromptLoader()
+bbox_annotator = BBoxAnnotator(gemini_client)
+tracker = ObjectTracker()
+
+# 创建连续动作描述标注器
 annotator = TaskAnnotatorFactory.create_annotator(
     task_name="Continuous_Actions_Caption",
     gemini_client=gemini_client,
@@ -127,401 +172,401 @@ annotator = TaskAnnotatorFactory.create_annotator(
     tracker=tracker
 )
 
-# Annotate
-result = annotator.annotate(segment_metadata)
+# 加载视频片段元数据
+segment_metadata = InputAdapter.load_from_json(
+    Path("Dataset/3x3_Basketball/Men/segment_dir/1_split_7_start_000652.json")
+)
 
-# Process results
-for i, (window, action) in enumerate(
-    zip(result['A_window_frame'], result['answer'])
-):
-    print(f"Action {i+1}: {action}")
-    print(f"  Time window: frames {window}")
+# 执行标注
+annotation = annotator.annotate(
+    segment_metadata,
+    dataset_root=config.dataset_root
+)
+
+print("动作描述标注结果:")
+print(f"  任务: {annotation['task_L2']}")
+print(f"  问题: {annotation['question']}")
+print(f"  答案: {annotation['answer']}")
 ```
 
-### Example 6: Object Tracking
+### 示例 6：物体空间关系
 
 ```python
-# Create tracking annotator
+from pathlib import Path
+from auto_annotator import (
+    TaskAnnotatorFactory,
+    GeminiClient,
+    PromptLoader,
+    InputAdapter
+)
+from auto_annotator.annotators.bbox_annotator import BBoxAnnotator
+from auto_annotator.annotators.tracker import ObjectTracker
+from auto_annotator.config import get_config
+
+# 初始化
+config = get_config()
+gemini_client = GeminiClient()
+prompt_loader = PromptLoader()
+bbox_annotator = BBoxAnnotator(gemini_client)
+tracker = ObjectTracker()
+
+# 创建物体空间关系标注器
 annotator = TaskAnnotatorFactory.create_annotator(
-    task_name="Object_Tracking",
+    task_name="Objects_Spatial_Relationships",
     gemini_client=gemini_client,
     prompt_loader=prompt_loader,
     bbox_annotator=bbox_annotator,
     tracker=tracker
 )
 
-# Annotate
-result = annotator.annotate(segment_metadata)
+# 加载单帧元数据
+segment_metadata = InputAdapter.load_from_json(
+    Path("Dataset/Archery/Men's_Individual/singleframes_dir/5.json")
+)
 
-print(f"Tracking query: {result['query']}")
-print(f"Tracking window: {result['Q_window_frame']}")
-print(f"First bbox: {result.get('first_bounding_box', 'Not implemented')}")
+# 执行标注
+annotation = annotator.annotate(
+    segment_metadata,
+    dataset_root=config.dataset_root
+)
+
+print("物体空间关系标注结果:")
+for item in annotation.get('spatial_relationships', []):
+    print(f"  - {item}")
 ```
 
-## Utility Functions
+## 高级用法
 
-### Example 7: Video Information Extraction
+### 示例 7：加载并验证元数据
 
 ```python
 from pathlib import Path
-from auto_annotator.utils import VideoUtils
+from auto_annotator import InputAdapter
+from auto_annotator.config import get_config
 
-# Get video metadata
-video_path = Path("Dataset/3x3_Basketball/Men/1.mp4")
-info = VideoUtils.get_video_info(video_path)
-
-print(f"FPS: {info['fps']}")
-print(f"Total frames: {info['total_frames']}")
-print(f"Resolution: {info['resolution']}")
-print(f"Duration: {info['duration_sec']} seconds")
-
-# Extract a specific frame
-frame_path = VideoUtils.extract_frame(
-    video_path=video_path,
-    frame_number=100,
-    output_path=Path("output/frame_100.jpg")
-)
-
-# Convert between frames and seconds
-frames = VideoUtils.seconds_to_frames(5.0, fps=10)
-print(f"5 seconds = {frames} frames at 10 FPS")
-
-seconds = VideoUtils.frames_to_seconds(50, fps=10)
-print(f"50 frames = {seconds} seconds at 10 FPS")
-```
-
-### Example 8: JSON Manipulation
-
-```python
-from pathlib import Path
-from auto_annotator.utils import JSONUtils
-
-# Load existing annotation file
-base_json = JSONUtils.load_json(Path("Dataset/3x3_Basketball/Men/1.json"))
-
-# Load new annotations from temp directory
-new_annotations = []
-for temp_file in Path("output/temp").glob("*.json"):
-    data = JSONUtils.load_json(temp_file)
-    new_annotations.extend(data["annotations"])
-
-# Merge annotations
-merged = JSONUtils.merge_annotations(base_json, new_annotations)
-
-# Save merged result
-JSONUtils.save_json(merged, Path("output/final/1.json"))
-
-# Validate result
-is_valid, error = JSONUtils.validate_annotation_json(merged)
-if is_valid:
-    print("Validation successful!")
-else:
-    print(f"Validation failed: {error}")
-```
-
-### Example 9: Filtering Annotations
-
-```python
-from auto_annotator.utils import JSONUtils
-
-# Load annotation file
-data = JSONUtils.load_json(Path("output/final/1.json"))
-
-# Filter by task type
-understanding_tasks = JSONUtils.filter_annotations_by_task(
-    data, task_l1="Understanding"
-)
-print(f"Found {len(understanding_tasks)} Understanding tasks")
-
-perception_tasks = JSONUtils.filter_annotations_by_task(
-    data, task_l1="Perception"
-)
-print(f"Found {len(perception_tasks)} Perception tasks")
-
-# Filter by specific task
-scoreboard_annotations = JSONUtils.filter_annotations_by_task(
-    data, task_l2="ScoreboardSingle"
-)
-print(f"Found {len(scoreboard_annotations)} Scoreboard (Single) annotations")
-
-# Get all annotation IDs
-all_ids = JSONUtils.get_annotation_ids(data)
-print(f"Total annotations: {len(all_ids)}")
-```
-
-## Custom Prompt Templates
-
-### Example 10: Creating Custom Prompt Variables
-
-```python
-from auto_annotator.utils import PromptLoader
-
-# Initialize prompt loader
-loader = PromptLoader()
-
-# Load prompt with custom variables
-prompt = loader.load_prompt(
-    task_name="Continuous_Actions_Caption",
-    num_first_frame=150,
-    total_frames=100,
-    fps=10,
-    duration_sec=10.0
-)
-
-print(prompt)
-```
-
-### Example 11: Checking Required Variables
-
-```python
-from auto_annotator.utils import PromptLoader
-
-loader = PromptLoader()
-
-# Get required variables for a task
-variables = loader.get_required_variables("ScoreboardMultiple")
-print(f"Required variables: {variables}")
-
-# Validate all prompt files
-status = loader.validate_prompt_files()
-for task, exists in status.items():
-    if not exists:
-        print(f"WARNING: Missing prompt file for {task}")
-```
-
-## Configuration Management
-
-### Example 12: Accessing Configuration
-
-```python
-from auto_annotator import get_config, get_config_manager
-
-# Get config object
 config = get_config()
 
-# Access settings
-print(f"Gemini model: {config.gemini.model}")
-print(f"Output directory: {config.output.temp_dir}")
-print(f"Enabled tasks: {config.tasks.enabled}")
+# 加载元数据
+metadata_path = Path("Dataset/Archery/Men's_Individual/singleframes_dir/5.json")
+segment_metadata = InputAdapter.load_from_json(metadata_path)
 
-# Get config manager for advanced operations
-manager = get_config_manager()
+# 检查类型
+if segment_metadata.segment_info.is_single_frame():
+    print("✓ 这是单帧图片")
+    print(f"  帧号: {segment_metadata.segment_info.start_frame_in_original}")
+elif segment_metadata.segment_info.is_segment():
+    print("✓ 这是视频片段")
+    print(f"  总帧数: {segment_metadata.segment_info.total_frames}")
 
-# Check if task is enabled
-if manager.is_task_enabled("ScoreboardSingle"):
-    print("ScoreboardSingle is enabled")
+# 获取路径信息（video_id 自动提取）
+content_path = segment_metadata.get_video_path(config.dataset_root)
+original_video = segment_metadata.get_original_video_path(config.dataset_root)
 
-# Get prompt path
-prompt_path = manager.get_prompt_path("Object_Tracking")
-print(f"Prompt template: {prompt_path}")
+print(f"内容路径: {content_path}")
+print(f"原始视频: {original_video}")
+
+# 验证元数据
+is_valid, error = InputAdapter.validate_metadata(
+    segment_metadata,
+    dataset_root=config.dataset_root,
+    check_file_existence=True
+)
+
+if is_valid:
+    print("✓ 元数据验证通过")
+else:
+    print(f"✗ 元数据验证失败: {error}")
 ```
 
-## Error Handling
-
-### Example 13: Robust Processing with Error Handling
+### 示例 8：从事件目录加载所有元数据
 
 ```python
+from pathlib import Path
+from auto_annotator import InputAdapter
+
+# 加载事件目录下的所有元数据
+event_dir = Path("Dataset/Archery/Men's_Individual")
+all_metadata = InputAdapter.load_from_event_directory(event_dir)
+
+print(f"找到 {len(all_metadata)} 个片段/单帧")
+
+# 统计类型
+segments = [m for m in all_metadata if m.segment_info.is_segment()]
+singleframes = [m for m in all_metadata if m.segment_info.is_single_frame()]
+
+print(f"  视频片段: {len(segments)}")
+print(f"  单帧图片: {len(singleframes)}")
+
+# 只加载单帧
+singleframes_only = InputAdapter.load_from_event_directory(
+    event_dir,
+    single_frame_only=True
+)
+print(f"只加载单帧: {len(singleframes_only)} 个")
+```
+
+### 示例 9：自定义输出目录
+
+```python
+from pathlib import Path
+from auto_annotator.main import process_segment
+from auto_annotator import (
+    InputAdapter,
+    GeminiClient,
+    PromptLoader
+)
+from auto_annotator.annotators.bbox_annotator import BBoxAnnotator
+from auto_annotator.annotators.tracker import ObjectTracker
+from auto_annotator.config import get_config
+
+config = get_config()
+
+# 初始化组件
+gemini_client = GeminiClient()
+prompt_loader = PromptLoader()
+bbox_annotator = BBoxAnnotator(gemini_client)
+tracker = ObjectTracker()
+
+# 自定义输出目录（按日期）
+from datetime import datetime
+output_dir = Path(f"output/annotations_{datetime.now().strftime('%Y%m%d')}")
+output_dir.mkdir(parents=True, exist_ok=True)
+
+# 加载并处理
+segment_metadata = InputAdapter.load_from_json(
+    Path("Dataset/Archery/Men's_Individual/singleframes_dir/5.json")
+)
+
+output_path = process_segment(
+    segment_metadata=segment_metadata,
+    gemini_client=gemini_client,
+    prompt_loader=prompt_loader,
+    bbox_annotator=bbox_annotator,
+    tracker=tracker,
+    output_dir=output_dir,
+    dataset_root=config.dataset_root
+)
+
+print(f"标注结果保存到: {output_path}")
+```
+
+### 示例 10：错误处理
+
+```python
+from pathlib import Path
+from auto_annotator import InputAdapter, GeminiClient
 import logging
+
+# 设置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def safe_annotate(metadata_path: Path):
+    """安全地执行标注，处理可能的错误"""
+    try:
+        # 加载元数据
+        segment_metadata = InputAdapter.load_from_json(metadata_path)
+        logger.info(f"成功加载元数据: {metadata_path}")
+
+        # 验证
+        is_valid, error = InputAdapter.validate_metadata(
+            segment_metadata,
+            check_file_existence=True
+        )
+
+        if not is_valid:
+            logger.error(f"元数据验证失败: {error}")
+            return None
+
+        # 初始化客户端
+        gemini_client = GeminiClient()
+
+        # 执行标注
+        # ... 标注逻辑 ...
+
+        logger.info("标注成功完成")
+        return True
+
+    except FileNotFoundError as e:
+        logger.error(f"文件未找到: {e}")
+        return None
+    except ValueError as e:
+        logger.error(f"值错误: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"未预期的错误: {e}", exc_info=True)
+        return None
+
+# 使用
+result = safe_annotate(
+    Path("Dataset/Archery/Men's_Individual/singleframes_dir/5.json")
+)
+```
+
+## 批量处理
+
+### 示例 11：批量处理多个运动项目
+
+```python
 from pathlib import Path
 from auto_annotator import InputAdapter
 from auto_annotator.main import process_segment
+from auto_annotator import GeminiClient, PromptLoader
+from auto_annotator.annotators.bbox_annotator import BBoxAnnotator
+from auto_annotator.annotators.tracker import ObjectTracker
+from auto_annotator.config import get_config
 
-logger = logging.getLogger(__name__)
+config = get_config()
+dataset_root = Path(config.dataset_root)
 
-segments_dir = Path("segments")
-successful = []
-failed = []
+# 初始化组件
+gemini_client = GeminiClient()
+prompt_loader = PromptLoader()
+bbox_annotator = BBoxAnnotator(gemini_client)
+tracker = ObjectTracker()
 
-for segment_file in segments_dir.glob("*.json"):
-    try:
-        # Load and validate
-        metadata = InputAdapter.load_from_json(segment_file)
-        is_valid, error = InputAdapter.validate_metadata(metadata)
+# 遍历所有运动项目
+for sport_dir in dataset_root.iterdir():
+    if not sport_dir.is_dir():
+        continue
 
-        if not is_valid:
-            logger.error(f"Invalid metadata: {error}")
-            failed.append((segment_file, error))
+    print(f"\n处理运动项目: {sport_dir.name}")
+
+    # 遍历所有比赛事件
+    for event_dir in sport_dir.iterdir():
+        if not event_dir.is_dir():
             continue
 
-        # Process
-        output_path = process_segment(...)
-        successful.append((segment_file, output_path))
+        print(f"  处理事件: {event_dir.name}")
 
-    except Exception as e:
-        logger.error(f"Failed to process {segment_file}: {e}")
-        failed.append((segment_file, str(e)))
+        # 加载所有元数据
+        metadata_list = InputAdapter.load_from_event_directory(event_dir)
 
-# Report
-print(f"Successful: {len(successful)}")
-print(f"Failed: {len(failed)}")
+        print(f"    找到 {len(metadata_list)} 个片段/单帧")
 
-for segment_file, error in failed:
-    print(f"  - {segment_file.name}: {error}")
+        # 处理每个片段
+        for metadata in metadata_list:
+            try:
+                output_path = process_segment(
+                    segment_metadata=metadata,
+                    gemini_client=gemini_client,
+                    prompt_loader=prompt_loader,
+                    bbox_annotator=bbox_annotator,
+                    tracker=tracker,
+                    output_dir=Path("output/temp"),
+                    dataset_root=config.dataset_root
+                )
+                print(f"      ✓ {metadata.segment_id}")
+            except Exception as e:
+                print(f"      ✗ {metadata.segment_id}: {e}")
+
+print("\n批量处理完成！")
 ```
 
-## Advanced Usage
-
-### Example 14: Custom Annotator Implementation
+### 示例 12：并行批量处理
 
 ```python
-from auto_annotator.annotators.base_annotator import BaseAnnotator
-
-class CustomAnnotator(BaseAnnotator):
-    """Custom annotator for special tasks."""
-
-    def get_task_name(self) -> str:
-        return "CustomTask"
-
-    def get_task_l1(self) -> str:
-        return "Understanding"
-
-    def annotate(self, segment_metadata):
-        # Custom annotation logic
-        prompt = self.load_prompt(segment_metadata)
-
-        # Upload and process
-        video_file = self.gemini_client.upload_video(
-            segment_metadata.get_video_path()
-        )
-
-        result = self.gemini_client.annotate_video(video_file, prompt)
-
-        # Add metadata
-        result = self.add_metadata_fields(result)
-
-        # Cleanup
-        self.gemini_client.cleanup_file(video_file)
-
-        return result
-```
-
-### Example 15: Parallel Processing
-
-```python
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from auto_annotator import InputAdapter
 from auto_annotator.main import process_segment
+from auto_annotator import GeminiClient, PromptLoader
+from auto_annotator.annotators.bbox_annotator import BBoxAnnotator
+from auto_annotator.annotators.tracker import ObjectTracker
+from auto_annotator.config import get_config
 
-def process_segment_wrapper(segment_path):
-    """Wrapper for parallel processing."""
+config = get_config()
+
+def process_single_metadata(metadata_path: Path):
+    """处理单个元数据文件"""
     try:
-        metadata = InputAdapter.load_from_json(segment_path)
-        output_path = process_segment(...)
-        return (True, segment_path, output_path)
+        # 为每个线程创建独立的客户端
+        gemini_client = GeminiClient()
+        prompt_loader = PromptLoader()
+        bbox_annotator = BBoxAnnotator(gemini_client)
+        tracker = ObjectTracker()
+
+        # 加载和处理
+        segment_metadata = InputAdapter.load_from_json(metadata_path)
+        output_path = process_segment(
+            segment_metadata=segment_metadata,
+            gemini_client=gemini_client,
+            prompt_loader=prompt_loader,
+            bbox_annotator=bbox_annotator,
+            tracker=tracker,
+            output_dir=Path("output/temp"),
+            dataset_root=config.dataset_root
+        )
+        return (metadata_path.name, True, None)
     except Exception as e:
-        return (False, segment_path, str(e))
+        return (metadata_path.name, False, str(e))
 
-# Process segments in parallel
-segments = list(Path("segments").glob("*.json"))
+# 收集所有元数据文件
+event_dir = Path("Dataset/Archery/Men's_Individual")
+all_json_files = list(event_dir.glob("**/*.json"))
+all_json_files = [f for f in all_json_files if not f.name.startswith("annotation_")]
 
-with ThreadPoolExecutor(max_workers=4) as executor:
-    futures = [
-        executor.submit(process_segment_wrapper, seg)
-        for seg in segments
-    ]
+print(f"找到 {len(all_json_files)} 个元数据文件")
+
+# 并行处理（注意：控制并发数以避免 API 限流）
+with ThreadPoolExecutor(max_workers=3) as executor:
+    futures = [executor.submit(process_single_metadata, f) for f in all_json_files]
 
     for future in as_completed(futures):
-        success, segment_path, result = future.result()
+        filename, success, error = future.result()
         if success:
-            print(f"✓ {segment_path.name} -> {result}")
+            print(f"✓ {filename}")
         else:
-            print(f"✗ {segment_path.name}: {result}")
+            print(f"✗ {filename}: {error}")
+
+print("\n并行批量处理完成！")
 ```
 
-## Integration Examples
+## 自定义配置
 
-### Example 16: Creating Segment Metadata from Scratch
+### 示例 13：使用自定义提示词
 
 ```python
-from auto_annotator.adapters import InputAdapter
+from pathlib import Path
+from auto_annotator import PromptLoader, GeminiClient
 
-# Create segment metadata programmatically
-metadata_dict = {
-    "segment_id": "custom_001",
-    "original_video": {
-        "path": "Dataset/Archery/Men/1.mp4",
-        "json_path": "Dataset/Archery/Men/1.json",
-        "sport": "Archery",
-        "event": "Men",
-        "video_id": "1"
-    },
-    "segment_info": {
-        "path": "Dataset/Archery/Men/segments/1_001.mp4",
-        "start_frame_in_original": 0,
-        "total_frames": 150,
-        "fps": 10,
-        "duration_sec": 15.0,
-        "resolution": [1920, 1080]
-    },
-    "tasks_to_annotate": [
-        "Spatial_Temporal_Grounding",
-        "Continuous_Actions_Caption"
-    ],
-    "additional_info": {
-        "description": "Archer preparing and shooting arrow"
-    }
-}
+# 创建自定义提示词加载器
+prompt_loader = PromptLoader(prompts_dir=Path("my_custom_prompts"))
 
-metadata = InputAdapter.create_from_dict(metadata_dict)
+# 使用自定义提示词
+gemini_client = GeminiClient()
+custom_prompt = prompt_loader.load_prompt("my_custom_task")
 
-# Save to file
-from auto_annotator.utils import JSONUtils
-JSONUtils.save_json(
-    metadata_dict,
-    Path("segments/custom_001.json")
-)
+# 使用提示词进行标注
+response = gemini_client.generate_content([video, custom_prompt])
 ```
 
-### Example 17: Command Line Automation
-
-```bash
-#!/bin/bash
-# Process all sports categories
-
-SPORTS=("3x3_Basketball" "Archery" "Swimming")
-EVENTS=("Men" "Women")
-
-for sport in "${SPORTS[@]}"; do
-    for event in "${EVENTS[@]}"; do
-        echo "Processing $sport - $event"
-        uv run python -m auto_annotator.main \
-            "segments/$sport/$event/" \
-            -o "output/temp/$sport/$event/" \
-            -v
-    done
-done
-
-echo "All processing complete!"
-```
-
-## Testing and Validation
-
-### Example 18: Unit Testing Custom Functions
+### 示例 14：调整 API 参数
 
 ```python
-import pytest
-from auto_annotator.utils import JSONUtils
+from auto_annotator.config import get_config
 
-def test_custom_merge_logic():
-    """Test custom annotation merging."""
-    base = {
-        "annotations": [
-            {"annotation_id": "1", "task": "A"}
-        ]
-    }
+# 获取配置
+config = get_config()
 
-    new = [
-        {"task": "B"},
-        {"task": "C"}
-    ]
+# 显示当前配置
+print(f"Gemini 模型: {config.gemini.model}")
+print(f"上传超时: {config.gemini.upload_timeout_sec}秒")
+print(f"请求超时: {config.gemini.request_timeout_sec}秒")
 
-    result = JSONUtils.merge_annotations(base, new)
-
-    assert len(result["annotations"]) == 3
-    assert result["annotations"][1]["annotation_id"] == "2"
-    assert result["annotations"][2]["annotation_id"] == "3"
-
-# Run with: uv run pytest test_custom.py
+# 可以在 config/config.yaml 中修改这些参数
 ```
 
-These examples cover the main use cases for AutoAnnotator. For more information, see the [README.md](../README.md) and source code documentation.
+## 📚 更多资源
+
+- [README](../README.md) - 完整文档
+- [快速入门](QUICKSTART.md) - 快速上手指南
+- [数据集结构](DATASET_STRUCTURE.md) - 数据组织说明
+- [元数据 Schema](segment_metadata_schema.json) - JSON 格式定义
+
+## 🆘 需要帮助？
+
+如果遇到问题，请查看：
+1. [故障排除部分](../README.md#-故障排除)
+2. 运行测试脚本：`uv run python scripts/test_input_adapter.py`
+3. 检查日志文件：`logs/auto_annotator.log`

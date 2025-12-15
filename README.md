@@ -1,70 +1,71 @@
-# AutoAnnotator
+# AutoAnnotator - 智能视频标注系统
 
-AI-powered video annotation system for multimodal sports datasets using Google's Gemini API.
+基于 Google Gemini API 的多模态体育视频自动标注系统。
 
-## Overview
+## 📋 项目简介
 
-AutoAnnotator is a comprehensive Python toolkit designed to automatically annotate sports videos for multimodal benchmark datasets. It leverages Google's Gemini API to perform 7 different annotation tasks, covering both perception and understanding levels.
+AutoAnnotator 是一个专为多模态体育数据集设计的 Python 标注工具包。它利用 Google 的 Gemini API 执行 7 种不同的标注任务，覆盖感知和理解两个层次。
 
-## Features
+### 核心特性
 
-- **7 Annotation Tasks**:
-  - Scoreboard Understanding (Single Frame)
-  - Scoreboard Understanding (Multiple Frames)
-  - Objects Spatial Relationships
-  - Spatial-Temporal Grounding
-  - Continuous Actions Caption
-  - Continuous Events Caption
-  - Object Tracking
+- **7 种标注任务**：
+  - 计分板理解（单帧）
+  - 计分板理解（多帧）
+  - 物体空间关系识别
+  - 时空定位
+  - 连续动作描述
+  - 连续事件描述
+  - 物体跟踪
 
-- **Modular Architecture**:
-  - Decoupled input adapter for flexibility
-  - Task-specific annotators with unified interface
-  - Extensible bounding box and tracking interfaces
-  - Comprehensive configuration management
+- **模块化架构**：
+  - 解耦的输入适配器，支持灵活的数据格式
+  - 任务专用的标注器，统一接口设计
+  - 可扩展的边界框和跟踪接口
+  - 完善的配置管理系统
 
-- **Production Ready**:
-  - Robust error handling and logging
-  - JSON validation and merging utilities
-  - Batch processing support
-  - Temporary output management
+- **生产就绪**：
+  - 健壮的错误处理和日志记录
+  - JSON 验证和合并工具
+  - 批量处理支持
+  - 临时输出管理
 
-## Installation
+## 🚀 快速开始
 
-### Prerequisites
+### 环境要求
 
-- Python 3.10 or higher
-- [uv](https://github.com/astral-sh/uv) package manager
-- Google AI Studio API key
+- Python 3.10 或更高版本
+- [uv](https://github.com/astral-sh/uv) 包管理器
+- Google AI Studio API 密钥
 
-### Setup
+### 安装步骤
 
-1. Clone the repository:
+1. **克隆仓库**：
 ```bash
-cd /path/to/AutoAnnotator
+git clone <repository-url>
+cd AutoAnnotator
 ```
 
-2. Install dependencies using uv:
+2. **安装依赖**：
 ```bash
 uv sync
 ```
 
-3. Configure API key:
+3. **配置 API 密钥**：
 ```bash
 cp config/.env.example config/.env
-# Edit config/.env and add your GEMINI_API_KEY
+# 编辑 config/.env，添加你的 GEMINI_API_KEY
 ```
 
-4. Verify installation:
+4. **验证安装**：
 ```bash
-uv run python -c "from auto_annotator import get_config; print('Setup complete!')"
+uv run python -c "from auto_annotator import get_config; print('安装成功！')"
 ```
 
-## Configuration
+## ⚙️ 配置说明
 
-### Environment Variables
+### 环境变量
 
-Create a `config/.env` file:
+创建 `config/.env` 文件：
 
 ```env
 GEMINI_API_KEY=your_api_key_here
@@ -72,35 +73,109 @@ PROJECT_ROOT=/path/to/AutoAnnotator
 DATASET_ROOT=/path/to/Dataset
 ```
 
-### Configuration File
+### 配置文件
 
-Edit `config/config.yaml` to customize:
+编辑 `config/config.yaml` 以自定义：
 
-- Gemini model settings
-- Output directories
-- Task-specific parameters
-- Logging configuration
+- Gemini 模型设置
+- 输出目录
+- 任务特定参数
+- 日志配置
 
-## Usage
+## 📊 数据集结构
 
-### Command Line Interface
+### 目录组织
 
-Process a single segment:
+```
+Dataset/
+└── {运动项目}/              # 如：Archery, 3x3_Basketball
+    └── {比赛事件}/          # 如：Men's_Individual, Men
+        ├── {video_id}.mp4      # 原始视频文件（1.mp4, 2.mp4, ...）
+        ├── {video_id}.json     # 原始视频元数据
+        ├── metainfo.json       # 事件级元信息
+        ├── segment_dir/        # 视频片段目录
+        │   ├── {segment_id}.mp4
+        │   └── {segment_id}.json
+        └── singleframes_dir/   # 单帧图片目录
+            ├── {segment_id}.jpg
+            └── {segment_id}.json
+```
+
+### 元数据格式
+
+**视频片段**（`segment_dir/`）：
+
+```json
+{
+  "segment_id": "1_split_7_start_000652",
+  "original_video": {
+    "sport": "3x3_Basketball",
+    "event": "Men"
+  },
+  "segment_info": {
+    "start_frame_in_original": 6520,
+    "total_frames": 70,
+    "fps": 10.0,
+    "duration_sec": 7.0,
+    "resolution": [1920, 1080]
+  },
+  "tasks_to_annotate": ["UCE", "Continuous_Actions_Caption"],
+  "additional_info": {
+    "description": "从第 6520 帧开始的 70 帧视频片段"
+  }
+}
+```
+
+**单帧图片**（`singleframes_dir/`）：
+
+```json
+{
+  "segment_id": 5,
+  "original_video": {
+    "sport": "Archery",
+    "event": "Men's_Individual"
+  },
+  "segment_info": {
+    "start_frame_in_original": 7462,
+    "total_frames": 1,
+    "fps": 10.0,
+    "duration_sec": 0.1,
+    "resolution": [1920, 1080]
+  },
+  "tasks_to_annotate": ["ScoreboardSingle"],
+  "additional_info": {
+    "description": "在时间 746.2 秒提取的单帧"
+  }
+}
+```
+
+**关键特性**：
+- 片段和单帧使用**统一的元数据格式**
+- 通过 `total_frames` 区分类型（1 = 单帧，>1 = 片段）
+- `video_id` 自动从 `segment_id` 提取，无需单独存储
+
+详细说明请参考：[docs/DATASET_STRUCTURE.md](docs/DATASET_STRUCTURE.md)
+
+## 💻 使用方法
+
+### 命令行界面
+
+处理单个片段：
 ```bash
 uv run python -m auto_annotator.main path/to/segment_metadata.json
 ```
 
-Process multiple segments in a directory:
+处理目录中的多个片段：
 ```bash
 uv run python -m auto_annotator.main path/to/segments_dir/
 ```
 
-Specify custom output directory:
+指定自定义输出目录：
 ```bash
 uv run python -m auto_annotator.main path/to/segments/ -o output/custom/
 ```
 
-Enable verbose logging:
+启用详细日志：
 ```bash
 uv run python -m auto_annotator.main path/to/segments/ -v
 ```
@@ -117,19 +192,29 @@ from auto_annotator import (
 )
 from auto_annotator.annotators.bbox_annotator import BBoxAnnotator
 from auto_annotator.annotators.tracker import ObjectTracker
+from auto_annotator.config import get_config
 
-# Initialize components
+# 获取配置
+config = get_config()
+
+# 初始化组件
 gemini_client = GeminiClient()
 prompt_loader = PromptLoader()
-bbox_annotator = BBoxAnnotator()
+bbox_annotator = BBoxAnnotator(gemini_client)
 tracker = ObjectTracker()
 
-# Load segment metadata
+# 加载片段元数据
 segment_metadata = InputAdapter.load_from_json(
-    Path("segments/segment_001.json")
+    Path("Dataset/Archery/Men's_Individual/singleframes_dir/5.json")
 )
 
-# Create annotator for a specific task
+# 判断类型
+if segment_metadata.segment_info.is_single_frame():
+    print("这是单帧图片")
+elif segment_metadata.segment_info.is_segment():
+    print("这是视频片段")
+
+# 创建特定任务的标注器
 annotator = TaskAnnotatorFactory.create_annotator(
     task_name="ScoreboardSingle",
     gemini_client=gemini_client,
@@ -138,53 +223,28 @@ annotator = TaskAnnotatorFactory.create_annotator(
     tracker=tracker
 )
 
-# Perform annotation
-annotation = annotator.annotate(segment_metadata)
+# 执行标注
+annotation = annotator.annotate(
+    segment_metadata,
+    dataset_root=config.dataset_root
+)
 print(annotation)
+
+# 获取路径信息（video_id 自动提取）
+video_path = segment_metadata.get_video_path(config.dataset_root)
+original_video = segment_metadata.get_original_video_path(config.dataset_root)
 ```
 
-## Segment Metadata Format
+## 📤 输出格式
 
-Input segments should follow this JSON format:
+标注结果保存为 JSON 文件：
 
 ```json
 {
-  "segment_id": "1_segment_001",
-  "original_video": {
-    "path": "Dataset/3x3_Basketball/Men/1.mp4",
-    "json_path": "Dataset/3x3_Basketball/Men/1.json",
-    "sport": "3x3_Basketball",
-    "event": "Men",
-    "video_id": "1"
-  },
-  "segment_info": {
-    "path": "Dataset/3x3_Basketball/Men/segments/1_segment_001.mp4",
-    "start_frame_in_original": 150,
-    "total_frames": 100,
-    "fps": 10,
-    "duration_sec": 10.0,
-    "resolution": [1920, 1080]
-  },
-  "tasks_to_annotate": [
-    "ScoreboardSingle",
-    "Continuous_Actions_Caption"
-  ]
-}
-```
-
-See [docs/segment_metadata_schema.json](docs/segment_metadata_schema.json) for the complete schema.
-
-## Output Format
-
-Annotations are saved as JSON files in the temporary output directory:
-
-```json
-{
-  "segment_id": "1_segment_001",
+  "segment_id": "1_split_7_start_000652",
   "original_video": {
     "sport": "3x3_Basketball",
-    "event": "Men",
-    "video_id": "1"
+    "event": "Men"
   },
   "annotations": [
     {
@@ -192,94 +252,143 @@ Annotations are saved as JSON files in the temporary output directory:
       "task_L1": "Understanding",
       "task_L2": "ScoreboardSingle",
       "timestamp_frame": 50,
-      "question": "Based on the scoreboard, who is in first place?",
-      "answer": "The Lakers are in first place.",
+      "question": "根据计分板，谁排在第一位？",
+      "answer": "湖人队排在第一位。",
       "bounding_box": [934, 452, 1041, 667]
     }
   ]
 }
 ```
 
-## Development
-
-### Project Structure
+## 🏗️ 项目结构
 
 ```
 AutoAnnotator/
 ├── config/
-│   ├── prompts/           # Task prompt templates
-│   ├── config.yaml        # Main configuration
-│   └── .env.example       # Environment variables template
+│   ├── prompts/              # 任务提示词模板
+│   ├── config.yaml           # 主配置文件
+│   └── .env.example          # 环境变量模板
 ├── src/auto_annotator/
-│   ├── adapters/          # Input format adapters
-│   ├── annotators/        # Task annotators and AI clients
-│   ├── utils/             # Utility modules
-│   ├── config.py          # Configuration management
-│   └── main.py            # Main entry point
-├── tests/                 # Unit tests
-├── docs/                  # Documentation
+│   ├── adapters/             # 输入格式适配器
+│   │   └── input_adapter.py # 统一的元数据处理
+│   ├── annotators/           # 任务标注器和 AI 客户端
+│   │   ├── base_annotator.py      # 标注器基类
+│   │   ├── task_annotators.py     # 7 个任务标注器
+│   │   ├── gemini_client.py       # Gemini API 客户端
+│   │   ├── bbox_annotator.py      # 边界框标注接口
+│   │   └── tracker.py             # 物体跟踪接口
+│   ├── utils/                # 工具模块
+│   │   ├── prompt_loader.py       # 提示词加载器
+│   │   ├── video_utils.py         # 视频处理工具
+│   │   └── json_utils.py          # JSON 工具
+│   ├── config.py             # 配置管理
+│   └── main.py               # 主入口
+├── scripts/                  # 辅助脚本
+│   └── test_input_adapter.py # 适配器测试
+├── examples/                 # 示例文件
+│   ├── example_segment_metadata.json
+│   ├── example_singleframe_metadata.json
+│   └── test_scoreboard_single_real.py
+├── docs/                     # 文档
+│   ├── DATASET_STRUCTURE.md  # 数据集结构说明
+│   ├── segment_metadata_schema.json  # 元数据 Schema
+│   └── MIGRATION_GUIDE.md    # 迁移指南
+├── tests/                    # 单元测试
 └── output/
-    ├── temp/              # Temporary annotations
-    └── final/             # Final merged annotations
+    ├── temp/                 # 临时标注输出
+    └── final/                # 最终合并标注
 ```
 
-### Running Tests
+## 🔧 开发指南
+
+### 运行测试
 
 ```bash
-# Run all tests
+# 运行所有测试
 uv run pytest
 
-# Run specific test file
+# 运行特定测试文件
 uv run pytest tests/test_config.py
 
-# Run with coverage
+# 运行覆盖率测试
 uv run pytest --cov=auto_annotator
+
+# 测试适配器
+uv run python scripts/test_input_adapter.py
 ```
 
-### Adding New Tasks
+### 添加新任务
 
-1. Create prompt template in `config/prompts/`
-2. Implement annotator class inheriting from `BaseAnnotator`
-3. Register in `TaskAnnotatorFactory`
-4. Update configuration and documentation
+1. 在 `config/prompts/` 中创建提示词模板
+2. 在 `task_annotators.py` 中实现标注器类，继承自 `BaseAnnotator`
+3. 在 `TaskAnnotatorFactory` 中注册新任务
+4. 更新配置和文档
 
-## Extending Functionality
+示例：
 
-### Implementing Bounding Box Annotation
-
-The bounding box annotation interface is defined in [src/auto_annotator/annotators/bbox_annotator.py](src/auto_annotator/annotators/bbox_annotator.py).
-
-To implement:
-1. Complete the `annotate_single_object()` method
-2. Complete the `annotate_multiple_objects()` method
-3. Implement frame extraction if needed
-
-Example using Gemini grounding:
 ```python
-def annotate_single_object(self, image, description):
-    # Use Gemini grounding model
-    response = grounding_model.generate_content([image, description])
-    # Parse bounding box from response
-    bbox = BoundingBox(xtl, ytl, xbr, ybr)
-    return bbox
+class NewTaskAnnotator(BaseAnnotator):
+    """新任务标注器"""
+
+    def get_task_name(self) -> str:
+        return "NewTask"
+
+    def get_task_l1(self) -> str:
+        return "Understanding"  # 或 "Perception"
+
+    def annotate(
+        self,
+        segment_metadata: SegmentMetadata,
+        dataset_root: Optional[Path] = None
+    ) -> Dict[str, Any]:
+        # 实现标注逻辑
+        video_path = segment_metadata.get_video_path(dataset_root)
+        # ... 调用 Gemini API
+        return annotation_result
 ```
 
-### Implementing Object Tracking
+## 🔌 扩展功能
 
-The object tracking interface is defined in [src/auto_annotator/annotators/tracker.py](src/auto_annotator/annotators/tracker.py).
+### 实现边界框标注
 
-To implement:
-1. Choose tracking backend (ByteTrack, DeepSORT, etc.)
-2. Implement `track_from_first_bbox()` method
-3. Implement `track_with_query()` method
+边界框标注接口定义在 [src/auto_annotator/annotators/bbox_annotator.py](src/auto_annotator/annotators/bbox_annotator.py)。
 
-Example structure:
+当前实现使用 Gemini 的 Grounding 模型：
+
 ```python
-def track_from_first_bbox(self, video_path, first_bbox, start_frame, end_frame):
-    # Initialize tracker
+def annotate_single_object(
+    self,
+    image_or_video: Union[Path, Any],
+    object_description: str
+) -> BoundingBox:
+    """标注单个物体的边界框"""
+    # 使用 Gemini grounding 模型
+    response = self.gemini_client.ground_single_object(
+        image_or_video,
+        object_description
+    )
+    return BoundingBox(xtl, ytl, xbr, ybr)
+```
+
+### 实现物体跟踪
+
+物体跟踪接口定义在 [src/auto_annotator/annotators/tracker.py](src/auto_annotator/annotators/tracker.py)。
+
+可以集成不同的跟踪算法（ByteTrack、DeepSORT 等）：
+
+```python
+def track_from_first_bbox(
+    self,
+    video_path: Path,
+    first_bbox: BoundingBox,
+    start_frame: int,
+    end_frame: int
+) -> TrackingResult:
+    """从第一帧的边界框开始跟踪物体"""
+    # 初始化跟踪器
     tracker = YourTracker()
 
-    # Track object across frames
+    # 跨帧跟踪物体
     bboxes = []
     for frame_num in range(start_frame, end_frame + 1):
         bbox = tracker.update(frame)
@@ -288,53 +397,70 @@ def track_from_first_bbox(self, video_path, first_bbox, start_frame, end_frame):
     return TrackingResult(video_path, start_frame, end_frame, bboxes)
 ```
 
-## Troubleshooting
+## 🐛 故障排除
 
-### API Key Issues
+### API 密钥问题
 
-If you see "GEMINI_API_KEY not found":
-1. Ensure `config/.env` exists
-2. Check that the API key is correctly set
-3. Verify the API key is valid in Google AI Studio
+如果看到 "GEMINI_API_KEY not found" 错误：
+1. 确保 `config/.env` 文件存在
+2. 检查 API 密钥是否正确设置
+3. 在 Google AI Studio 中验证密钥有效性
 
-### Video Upload Timeout
+### 视频上传超时
 
-If videos are timing out during upload:
-1. Increase `upload_timeout_sec` in `config/config.yaml`
-2. Check your internet connection
-3. Consider splitting large videos into smaller segments
+如果视频上传超时：
+1. 增加 `config/config.yaml` 中的 `upload_timeout_sec`
+2. 检查网络连接
+3. 考虑将大视频分割成小片段
 
-### Import Errors
+### 导入错误
 
-If you encounter import errors:
+如果遇到导入错误：
 ```bash
-# Reinstall dependencies
+# 重新安装依赖
 uv sync --reinstall
 
-# Check Python version
-python --version  # Should be 3.10+
+# 检查 Python 版本
+python --version  # 应该是 3.10+
 ```
 
-## Workflow Integration
+### 元数据验证失败
 
-AutoAnnotator is designed as Step 3 in a 5-step annotation pipeline:
+如果元数据验证失败：
+1. 检查 JSON 格式是否正确
+2. 确保 `total_frames` 和 `duration_sec` 一致
+3. 验证文件路径是否存在
+4. 参考 [docs/segment_metadata_schema.json](docs/segment_metadata_schema.json)
 
-1. **Segment Splitting**: Extract relevant clips from full videos
-2. **Human Review**: Verify segment quality
-3. **AI Annotation** (AutoAnnotator): Generate annotations
-4. **Human Review**: Verify and correct annotations
-5. **JSON Merging**: Combine into final dataset
+## 🔄 工作流集成
 
-## Contributing
+AutoAnnotator 设计为 5 步标注流程中的第 3 步：
 
-This project is part of a multimodal benchmark research effort. For collaboration inquiries, please contact the project maintainer.
+1. **片段切分**：从完整视频中提取相关片段
+2. **人工审核**：验证片段质量
+3. **AI 标注**（AutoAnnotator）：生成标注
+4. **人工审核**：验证和修正标注
+5. **JSON 合并**：合并为最终数据集
 
-## License
+## 📚 相关文档
 
-MIT
+- [数据集结构说明](docs/DATASET_STRUCTURE.md) - 详细的目录和元数据格式说明
+- [元数据 Schema](docs/segment_metadata_schema.json) - 完整的 JSON Schema 定义
+- [迁移指南](docs/MIGRATION_GUIDE.md) - 从旧格式迁移的说明
+- [快速开始指南](docs/QUICKSTART.md) - 快速入门教程（待补充）
+- [使用示例](docs/USAGE_EXAMPLES.md) - 更多使用示例（待补充）
 
-## Acknowledgments
+## 🤝 贡献
 
-- Google Gemini API for multimodal understanding
-- OpenCV for video processing
-- uv for modern Python package management
+本项目是多模态基准数据集研究的一部分。如需合作，请联系项目维护者。
+
+## 📄 许可证
+
+MIT License
+
+## 🙏 致谢
+
+- Google Gemini API - 提供多模态理解能力
+- OpenCV - 视频处理
+- uv - 现代化的 Python 包管理
+- Pydantic - 数据验证

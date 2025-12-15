@@ -1,0 +1,20 @@
+{
+  "segment_id": 5,
+  "original_video": {
+    "sport": "Archery",
+    "event": "Men's_Individual"
+  },
+  "segment_info": {
+    "start_frame_in_original": 7462,
+    "total_frames": 1,
+    "fps": 10.0,
+    "duration_sec": 0.1,
+    "resolution": [1920, 1080]
+  },
+  "tasks_to_annotate": [
+    "ScoreboardSingle"
+  ],
+  "additional_info": {
+    "description": "Extracted single frame at time 746.200s."
+  }
+}
