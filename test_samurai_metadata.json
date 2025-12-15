@@ -1,0 +1,19 @@
+{
+  "segment_id": "samurai_demo_test_001",
+  "original_video": {
+    "path": "/home/zhanghongkai/Research/AutoAnnotator/src/auto_annotator/annotators/samurai_deploy/test/demo_video.mp4",
+    "json_path": "/home/zhanghongkai/Research/AutoAnnotator/src/auto_annotator/annotators/samurai_deploy/test/demo_video.json",
+    "sport": "Demo",
+    "event": "Test",
+    "video_id": "demo"
+  },
+  "segment_info": {
+    "path": "/home/zhanghongkai/Research/AutoAnnotator/src/auto_annotator/annotators/samurai_deploy/test/demo_video.mp4",
+    "start_frame_in_original": 0,
+    "total_frames": 70,
+    "fps": 10,
+    "duration_sec": 7.0,
+    "resolution": [1920, 1080]
+  },
+  "tasks_to_annotate": ["Object_Tracking"]
+}
