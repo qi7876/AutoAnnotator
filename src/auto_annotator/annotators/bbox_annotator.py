@@ -53,10 +53,10 @@ class BoundingBox:
     @classmethod
     def from_normalized(
         cls,
-        xtl_norm: float,
-        ytl_norm: float,
-        xbr_norm: float,
-        ybr_norm: float,
+        ymin_norm: float,
+        xmin_norm: float,
+        ymax_norm: float,
+        xmax_norm: float,
         image_width: int,
         image_height: int
     ):
@@ -64,20 +64,20 @@ class BoundingBox:
         Create bounding box from normalized coordinates [0, 1000].
 
         Args:
-            xtl_norm: Normalized top-left x (0-1000)
-            ytl_norm: Normalized top-left y (0-1000)
-            xbr_norm: Normalized bottom-right x (0-1000)
-            ybr_norm: Normalized bottom-right y (0-1000)
+            ymin_norm: Normalized top y (0-1000)
+            xmin_norm: Normalized left x (0-1000)
+            ymax_norm: Normalized bottom y (0-1000)
+            xmax_norm: Normalized right x (0-1000)
             image_width: Image width in pixels
             image_height: Image height in pixels
 
         Returns:
             BoundingBox with pixel coordinates
         """
-        xtl = (xtl_norm / 1000.0) * image_width
-        ytl = (ytl_norm / 1000.0) * image_height
-        xbr = (xbr_norm / 1000.0) * image_width
-        ybr = (ybr_norm / 1000.0) * image_height
+        xtl = (xmin_norm / 1000.0) * image_width
+        ytl = (ymin_norm / 1000.0) * image_height
+        xbr = (xmax_norm / 1000.0) * image_width
+        ybr = (ymax_norm / 1000.0) * image_height
         return cls(xtl, ytl, xbr, ybr)
 
     def __repr__(self):
@@ -152,12 +152,12 @@ class BBoxAnnotator:
         )
 
         # convert normalized bbox to pixel bbox
-        xtl_norm, ytl_norm, xbr_norm, ybr_norm = bbox_norm
+        ytl_norm, xtl_norm, ybr_norm, xbr_norm = bbox_norm
         bbox = BoundingBox.from_normalized(
-            xtl_norm=xtl_norm,
-            ytl_norm=ytl_norm,
-            xbr_norm=xbr_norm,
-            ybr_norm=ybr_norm,
+            ymin_norm=ytl_norm,
+            xmin_norm=xtl_norm,
+            ymax_norm=ybr_norm,
+            xmax_norm=xbr_norm,
             image_width=width,
             image_height=height
         )
@@ -229,12 +229,12 @@ class BBoxAnnotator:
         # Convert normalized bboxes to pixel bboxes
         bboxes: List[BoundingBox] = []
         for bbox_norm in normalized_bboxes_list:
-            xtl_norm, ytl_norm, xbr_norm, ybr_norm = bbox_norm
+            ytl_norm, xtl_norm, ybr_norm, xbr_norm = bbox_norm
             bbox = BoundingBox.from_normalized(
-                xtl_norm=xtl_norm,
-                ytl_norm=ytl_norm,
-                xbr_norm=xbr_norm,
-                ybr_norm=ybr_norm,
+                ymin_norm=ytl_norm,
+                xmin_norm=xtl_norm,
+                ymax_norm=ybr_norm,
+                xmax_norm=xbr_norm,
                 image_width=width,
                 image_height=height
             )

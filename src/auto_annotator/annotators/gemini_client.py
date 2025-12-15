@@ -247,14 +247,14 @@ class GeminiClient:
             prompt = f"""
                 Detect a single object that matches this description: "{description}".
                 Return a JSON array with exactly one element, containing only the bounding box coordinates:
-                [{{"box_2d": [xtl, ytl, xbr, ybr]}}]
+                [{{"box_2d": [ymin, xmin, ymax, xmax]}}]
                 Coordinates are normalized in the range 0-1000. Do not return masks, labels, or extra objects.
                 """
         elif task_type == "multiple_boxes":
             prompt = f"""
                 Detect all objects that match this description: "{description}".
                 Return a JSON array with one or more elements, each containing the bounding box coordinates:
-                [{{"box_2d": [xtl, ytl, xbr, ybr]}}]
+                [{{"box_2d": [ymin, xmin, ymax, xmax]}}]
                 Coordinates are normalized in the range 0-1000. Do not return masks, labels, or extra objects.
                 """
         else:
