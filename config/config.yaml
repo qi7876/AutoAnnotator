@@ -2,14 +2,14 @@
 
 # Gemini API Settings
 gemini:
-  model: "gemini-2.5-flash"
+  model: "gemini-3-pro-preview"
   grounding_model: "gemini-robotics-er-1.5-preview"
   video_sampling_fps: 10
   generation_config:
-    temperature: 0.2
+    temperature: 1.0
     top_p: 0.95
-    top_k: 40
-    max_output_tokens: 8192
+    top_k: 64
+    max_output_tokens: 65536
     response_mime_type: "application/json"
 
   # Video processing settings
@@ -44,7 +44,7 @@ tasks:
 
   spatial_relationships:
     min_objects: 2
-    max_objects: 5
+    max_objects: 2
 
   tracking:
     tracker_backend: "local"  # local or api

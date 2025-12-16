@@ -338,63 +338,13 @@ class NewTaskAnnotator(BaseAnnotator):
 
     def annotate(
         self,
-        segment_metadata: SegmentMetadata,
+        segment_metadata: ClipMetadata,
         dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         # 实现标注逻辑
         video_path = segment_metadata.get_video_path(dataset_root)
         # ... 调用 Gemini API
         return annotation_result
-```
-
-## 🔌 扩展功能
-
-### 实现边界框标注
-
-边界框标注接口定义在 [src/auto_annotator/annotators/bbox_annotator.py](src/auto_annotator/annotators/bbox_annotator.py)。
-
-当前实现使用 Gemini 的 Grounding 模型：
-
-```python
-def annotate_single_object(
-    self,
-    image_or_video: Union[Path, Any],
-    object_description: str
-) -> BoundingBox:
-    """标注单个物体的边界框"""
-    # 使用 Gemini grounding 模型
-    response = self.gemini_client.ground_single_object(
-        image_or_video,
-        object_description
-    )
-    return BoundingBox(xtl, ytl, xbr, ybr)
-```
-
-### 实现物体跟踪
-
-物体跟踪接口定义在 [src/auto_annotator/annotators/tracker.py](src/auto_annotator/annotators/tracker.py)。
-
-可以集成不同的跟踪算法（ByteTrack、DeepSORT 等）：
-
-```python
-def track_from_first_bbox(
-    self,
-    video_path: Path,
-    first_bbox: BoundingBox,
-    start_frame: int,
-    end_frame: int
-) -> TrackingResult:
-    """从第一帧的边界框开始跟踪物体"""
-    # 初始化跟踪器
-    tracker = YourTracker()
-
-    # 跨帧跟踪物体
-    bboxes = []
-    for frame_num in range(start_frame, end_frame + 1):
-        bbox = tracker.update(frame)
-        bboxes.append(bbox)
-
-    return TrackingResult(video_path, start_frame, end_frame, bboxes)
 ```
 
 ## 🐛 故障排除
@@ -446,21 +396,10 @@ AutoAnnotator 设计为 5 步标注流程中的第 3 步：
 
 - [数据集结构说明](docs/DATASET_STRUCTURE.md) - 详细的目录和元数据格式说明
 - [元数据 Schema](docs/segment_metadata_schema.json) - 完整的 JSON Schema 定义
-- [迁移指南](docs/MIGRATION_GUIDE.md) - 从旧格式迁移的说明
 - [快速开始指南](docs/QUICKSTART.md) - 快速入门教程（待补充）
 - [使用示例](docs/USAGE_EXAMPLES.md) - 更多使用示例（待补充）
 
-## 🤝 贡献
-
-本项目是多模态基准数据集研究的一部分。如需合作，请联系项目维护者。
 
 ## 📄 许可证
 
 MIT License
-
-## 🙏 致谢
-
-- Google Gemini API - 提供多模态理解能力
-- OpenCV - 视频处理
-- uv - 现代化的 Python 包管理
-- Pydantic - 数据验证

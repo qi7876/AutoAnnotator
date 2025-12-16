@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from ..adapters import SegmentMetadata
+from ..adapters import ClipMetadata
 from ..utils import PromptLoader, VideoUtils
 from .base_annotator import BaseAnnotator
 from .bbox_annotator import BBoxAnnotator
@@ -34,7 +34,7 @@ class ScoreboardSingleAnnotator(BaseAnnotator):
 
     def annotate(
         self,
-        segment_metadata: SegmentMetadata,
+        segment_metadata: ClipMetadata,
         dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate scoreboard in a single frame."""
@@ -92,7 +92,7 @@ class ScoreboardMultipleAnnotator(BaseAnnotator):
 
     def annotate(
         self,
-        segment_metadata: SegmentMetadata,
+        segment_metadata: ClipMetadata,
         dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate scoreboard changes across multiple frames."""
@@ -140,7 +140,7 @@ class ObjectsSpatialRelationshipsAnnotator(BaseAnnotator):
 
     def annotate(
         self,
-        segment_metadata: SegmentMetadata,
+        segment_metadata: ClipMetadata,
         dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate spatial relationships between objects."""
@@ -215,7 +215,7 @@ class SpatialTemporalGroundingAnnotator(BaseAnnotator):
 
     def annotate(
         self,
-        segment_metadata: SegmentMetadata,
+        segment_metadata: ClipMetadata,
         dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate spatial-temporal grounding."""
@@ -288,7 +288,7 @@ class ContinuousActionsCaptionAnnotator(BaseAnnotator):
 
     def annotate(
         self,
-        segment_metadata: SegmentMetadata,
+        segment_metadata: ClipMetadata,
         dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate continuous actions."""
@@ -337,7 +337,7 @@ class ContinuousEventsCaptionAnnotator(BaseAnnotator):
 
     def annotate(
         self,
-        segment_metadata: SegmentMetadata,
+        segment_metadata: ClipMetadata,
         dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate continuous events."""
@@ -397,7 +397,7 @@ class ObjectTrackingAnnotator(BaseAnnotator):
 
     def annotate(
         self,
-        segment_metadata: SegmentMetadata,
+        segment_metadata: ClipMetadata,
         dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate object tracking."""

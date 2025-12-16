@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import List
 
-from .adapters import InputAdapter, SegmentMetadata
+from .adapters import InputAdapter, ClipMetadata
 from .annotators import GeminiClient, TaskAnnotatorFactory
 from .annotators.bbox_annotator import BBoxAnnotator
 from .annotators.tracker import ObjectTracker
@@ -39,7 +39,7 @@ def setup_logging():
 
 
 def process_segment(
-    segment_metadata: SegmentMetadata,
+    segment_metadata: ClipMetadata,
     gemini_client: GeminiClient,
     prompt_loader: PromptLoader,
     bbox_annotator: BBoxAnnotator,

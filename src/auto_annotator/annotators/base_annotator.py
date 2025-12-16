@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ..adapters import SegmentMetadata
+from ..adapters import ClipMetadata
 from ..utils import PromptLoader
 from .gemini_client import GeminiClient
 
@@ -56,7 +56,7 @@ class BaseAnnotator(ABC):
     @abstractmethod
     def annotate(
         self,
-        segment_metadata: SegmentMetadata,
+        segment_metadata: ClipMetadata,
         dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """
@@ -73,7 +73,7 @@ class BaseAnnotator(ABC):
 
     def prepare_prompt_variables(
         self,
-        segment_metadata: SegmentMetadata
+        segment_metadata: ClipMetadata
     ) -> Dict[str, Any]:
         """
         Prepare common variables for prompt template.
@@ -93,7 +93,7 @@ class BaseAnnotator(ABC):
 
     def load_prompt(
         self,
-        segment_metadata: SegmentMetadata,
+        segment_metadata: ClipMetadata,
         **extra_vars
     ) -> str:
         """

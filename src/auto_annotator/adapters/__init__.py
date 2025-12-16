@@ -1,5 +1,15 @@
 """Adapters for handling different input formats."""
 
-from .input_adapter import InputAdapter, SegmentMetadata
+from .input_adapter import (
+    InputAdapter,
+    ClipMetadata,
+    ClipInfo,
+    OriginInfo,
+)
 
-__all__ = ["InputAdapter", "SegmentMetadata"]
+__all__ = [
+    "InputAdapter",
+    "ClipMetadata",
+    "ClipInfo",
+    "OriginInfo",
+]

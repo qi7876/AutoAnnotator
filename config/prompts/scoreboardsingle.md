@@ -28,5 +28,7 @@ Instructions:
 - `answer`: Provide a detailed answer based on the visible scoreboard information
 - `bounding_box`: Describe the location of the scoreboard in natural language only, no coordinates needed. (e.g., "the scoreboard in the upper left corner showing team scores").
 
+The segment's starting frame in the original video is frame {num_first_frame}.
+The segment has {total_frames} frames in total.
 
 Return your annotation in JSON format. Your annotation content should be in English.

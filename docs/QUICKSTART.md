@@ -372,14 +372,3 @@ python --version  # 应该是 3.10+
 3. 参考 [API 文档](../README.md#-python-api) 了解完整的 API
 4. 自定义 [配置文件](../config/config.yaml)
 5. 自定义 [提示词模板](../config/prompts/)
-
-## 🆘 需要帮助？
-
-如果遇到问题：
-
-1. 查看 [README 故障排除部分](../README.md#-故障排除)
-2. 运行测试脚本验证安装：`uv run python scripts/test_input_adapter.py`
-3. 查看日志文件：`logs/auto_annotator.log`
-4. 提交 Issue 到项目仓库
-
-祝标注愉快！🎉
