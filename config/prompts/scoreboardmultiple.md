@@ -5,7 +5,7 @@ I will provide you with a video segment (10 FPS). You need to annotate a task ca
 Please annotate according to the following JSON template:
 
 ```json
-{
+{{
     "annotation_id": "1",
     "task_L1": "Understanding",
     "task_L2": "ScoreboardMultiple",
@@ -13,7 +13,7 @@ Please annotate according to the following JSON template:
     "question": "Based on the scoreboard information, describe the ranking changes between the second round and the first round.",
     "A_window_frame": ["10-13", "17-20"],
     "answer": "According to the scoreboard, France moved from second place to first place, England moved from first place to second place, and the rankings of other countries remained unchanged."
-}
+}}
 ```
 
 Instructions:

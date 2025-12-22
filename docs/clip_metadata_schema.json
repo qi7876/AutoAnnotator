@@ -1,0 +1,103 @@
+{
+  "description": "Schema for clip metadata JSON files",
+  "examples": [
+    {
+      "description": "Example metadata for a video clip",
+      "data": {
+        "id": "1",
+        "origin": {
+          "sport": "3x3_Basketball",
+          "event": "Men"
+        },
+        "info": {
+          "original_starting_frame": 6520,
+          "total_frames": 70,
+          "fps": 10.0
+        },
+        "tasks_to_annotate": [
+          "UCE",
+          "Continuous_Actions_Caption"
+        ]
+      }
+    },
+    {
+      "description": "Example metadata for a single frame",
+      "data": {
+        "id": "1",
+        "origin": {
+          "sport": "Archery",
+          "event": "Men's_Individual"
+        },
+        "info": {
+          "original_starting_frame": 7462,
+          "total_frames": 1,
+          "fps": 10.0
+        },
+        "tasks_to_annotate": [
+          "ScoreboardSingle"
+        ]
+      }
+    }
+  ],
+  "schema": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier matching the filename (without extension)",
+      "examples": ["1", "2", "3"]
+    },
+    "origin": {
+      "type": "object",
+      "required": true,
+      "properties": {
+        "sport": {
+          "type": "string",
+          "description": "Sport name (e.g., 'Archery', '3x3_Basketball')"
+        },
+        "event": {
+          "type": "string",
+          "description": "Event name (e.g., 'Men's_Individual', 'Men', 'Women's_Team')"
+        }
+      }
+    },
+    "info": {
+      "type": "object",
+      "required": true,
+      "properties": {
+        "original_starting_frame": {
+          "type": "integer",
+          "description": "Starting frame number in the original video",
+          "minimum": 0
+        },
+        "total_frames": {
+          "type": "integer",
+          "description": "Total number of frames. Use 1 for single frames, >1 for video clips",
+          "minimum": 1
+        },
+        "fps": {
+          "type": "number",
+          "description": "Frames per second",
+          "minimum": 0
+        }
+      },
+      "note": "Type distinction: total_frames == 1 means single frame, total_frames > 1 means video clip"
+    },
+    "tasks_to_annotate": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "List of annotation task names to perform on this clip"
+    }
+  },
+  "file_paths": {
+    "original_video": "Dataset/{sport}/{event}/{video_id}.mp4",
+    "original_video_json": "Dataset/{sport}/{event}/{video_id}.json",
+    "event_metainfo": "Dataset/{sport}/{event}/metainfo.json",
+    "clip_video": "Dataset/{sport}/{event}/clips/{id}.mp4",
+    "clip_json": "Dataset/{sport}/{event}/clips/{id}.json",
+    "frame_image": "Dataset/{sport}/{event}/frames/{id}.jpg",
+    "frame_json": "Dataset/{sport}/{event}/frames/{id}.json"
+  },
+  "notes": {
+    "type_distinction": "Single frames are identified by total_frames == 1, video clips by total_frames > 1. No explicit 'type' field needed.",
+    "simplified_structure": "The new format uses simple string IDs that match filenames, making the structure cleaner and easier to manage."
+  }
+}

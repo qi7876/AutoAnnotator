@@ -5,13 +5,13 @@ I will provide you with a video segment (10 FPS). You need to annotate a task ca
 Please annotate according to the following JSON template:
 
 ```json
-{
+{{
     "annotation_id": "1",
     "task_L1": "Understanding",
     "task_L2": "Spatial_Temporal_Grounding",
     "question": "The player wearing red jersey number 12 from the Spanish team completes the second shot",
     "A_window_frame": [15, 18]
-}
+}}
 ```
 
 Instructions:

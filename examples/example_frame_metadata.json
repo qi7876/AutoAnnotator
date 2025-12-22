@@ -1,0 +1,15 @@
+{
+  "id": "1",
+  "origin": {
+    "sport": "Archery",
+    "event": "Men's_Individual"
+  },
+  "info": {
+    "original_starting_frame": 7462,
+    "total_frames": 1,
+    "fps": 10.0
+  },
+  "tasks_to_annotate": [
+    "ScoreboardSingle"
+  ]
+}

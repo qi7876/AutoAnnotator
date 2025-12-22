@@ -1,0 +1,16 @@
+{
+  "id": "1",
+  "origin": {
+    "sport": "3x3_Basketball",
+    "event": "Men"
+  },
+  "info": {
+    "original_starting_frame": 6520,
+    "total_frames": 70,
+    "fps": 10.0
+  },
+  "tasks_to_annotate": [
+    "UCE",
+    "Continuous_Actions_Caption"
+  ]
+}

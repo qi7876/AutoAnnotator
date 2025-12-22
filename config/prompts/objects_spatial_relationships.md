@@ -5,7 +5,7 @@ I will provide you with a single frame from a sports video (10 FPS). You need to
 Please annotate according to the following JSON template:
 
 ```json
-{
+{{
     "annotation_id": "1",
     "task_L1": "Understanding",
     "task_L2": "Objects_Spatial_Relationships",
@@ -13,16 +13,16 @@ Please annotate according to the following JSON template:
     "question": "In which direction is the player in the red jersey (Player A) relative to the player in the blue jersey (Player B)?",
     "answer": "The player in the red jersey (Player A) is to the left of the player in the blue jersey (Player B).",
     "bounding_box": [
-        {
+        {{
             "label": "Player A",
             "description": "the player wearing red jersey number 10"
-        },
-        {
+        }},
+        {{
             "label": "Player B",
             "description": "the player wearing blue jersey number 5"
-        }
+        }}
     ]
-}
+}}
 ```
 
 Instructions:

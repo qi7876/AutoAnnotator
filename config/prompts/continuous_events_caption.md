@@ -5,7 +5,7 @@ I will provide you with a video segment (10 FPS, you need to convert seconds to 
 Please annotate according to the following JSON template:
 
 ```json
-{
+{{
     "annotation_id": "1",
     "task_L1": "Understanding",
     "task_L2": "Continuous_Events_Caption",
@@ -16,7 +16,7 @@ Please annotate according to the following JSON template:
         "The offensive player successfully breaks through",
         "The offensive player successfully scores"
     ]
-}
+}}
 ```
 
 Instructions:
