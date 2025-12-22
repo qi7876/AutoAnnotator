@@ -1,5 +1,6 @@
 """Concrete implementations of task annotators."""
 
+import json
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -414,6 +415,11 @@ class ObjectTrackingAnnotator(BaseAnnotator):
 
             # Get annotation from AI
             result = self.gemini_client.annotate_video(video_file, prompt)
+            logger.info(
+                "Gemini annotation response for %s: %s",
+                segment_metadata.id,
+                json.dumps(result, ensure_ascii=False)
+            )
 
             # Get first frame description and tracking window
             first_frame_desc = result.get("first_frame_description", "")
@@ -427,30 +433,38 @@ class ObjectTrackingAnnotator(BaseAnnotator):
                     first_frame
                 )
 
-                # TODO: Use bbox_annotator and tracker
                 first_bboxes_with_label = []
-                multi_object = len(first_frame_desc)>1
-                if(len(first_frame_desc)==0):
-                    raise ValueError("No description for first frame bounding box.")
-                # single object
-                elif(not multi_object):
-                    first_bboxes = self.bbox_annotator.annotate_single_object(
-                        frame_path, first_frame_desc[0]
-                    )
-                    bbox_dict = {}
-                    bbox_dict['bbox'] = first_bboxes.to_list()
-                    bbox_dict['label'] = first_frame_desc[0]
-                    first_bboxes_with_label.append(bbox_dict)
-                # multiple objects
-                elif(multi_object):
+                multi_object = len(first_frame_desc)
+
+                if multi_object:
                     first_bboxes = self.bbox_annotator.annotate_multiple_objects(
                         frame_path, first_frame_desc
                     )
+                    if len(first_bboxes) != len(first_frame_desc):
+                        logger.warning(
+                            "Bounding box count (%d) differs from description count (%d) for %s",
+                            len(first_bboxes),
+                            len(first_frame_desc),
+                            segment_metadata.id
+                        )
                     for i, bbox in enumerate(first_bboxes):
-                        bbox_dict = {}
-                        bbox_dict['bbox'] = bbox.to_list()
-                        bbox_dict['label'] = first_frame_desc[i]
-                        first_bboxes_with_label.append(bbox_dict)
+                        label = first_frame_desc[i] if i < len(first_frame_desc) else f"Object {i}"
+                        first_bboxes_with_label.append(
+                            {
+                                "bbox": bbox.to_list(),
+                                "label": label
+                            }
+                        )
+                else:
+                    first_bbox = self.bbox_annotator.annotate_single_object(
+                        frame_path, first_frame_desc[0]
+                    )
+                    first_bboxes_with_label.append(
+                        {
+                            "bbox": first_bbox.to_list(),
+                            "label": first_frame_desc[0]
+                        }
+                    )
                 
                 tracking_result = self.tracker.track_from_first_bbox(
                     segment_metadata.get_video_path(),
@@ -459,7 +473,11 @@ class ObjectTrackingAnnotator(BaseAnnotator):
                     q_window[1]
                 )
                 # Handle tracking result (now returns TrackingResult object)
-                result["first_bounding_box"] = first_bboxes_with_label if multi_object else first_bboxes.to_list()
+                result["first_bounding_box"] = (
+                    first_bboxes_with_label
+                    if multi_object
+                    else first_bboxes_with_label[0]["bbox"]
+                )
                 result["tracking_bboxes"] = tracking_result.to_dict()
 
             # Add metadata
