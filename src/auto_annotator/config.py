@@ -142,10 +142,10 @@ class ConfigManager:
         prompts_dir = Path(self._config.project_root) / "config" / "prompts"
         return prompts_dir / f"{task_name.lower()}.md"
 
-    def get_temp_output_path(self, segment_id: str) -> Path:
-        """Get temporary output path for a segment."""
+    def get_temp_output_path(self, clip_id: str) -> Path:
+        """Get temporary output path for a clip."""
         temp_dir = Path(self._config.project_root) / self._config.output.temp_dir
-        return temp_dir / f"{segment_id}.json"
+        return temp_dir / f"{clip_id}.json"
 
     def is_task_enabled(self, task_name: str) -> bool:
         """Check if a task is enabled."""

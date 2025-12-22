@@ -155,18 +155,18 @@ bbox_annotator = BBoxAnnotator(gemini_client)
 tracker = ObjectTracker()
 
 # 加载示例元数据
-segment_metadata = InputAdapter.load_from_json(
-    Path("examples/example_singleframe_metadata.json")
+clip_metadata = InputAdapter.load_from_json(
+    Path("examples/example_frame_metadata.json")
 )
 
-print(f"片段 ID: {segment_metadata.segment_id}")
-print(f"运动项目: {segment_metadata.original_video.sport}")
-print(f"比赛事件: {segment_metadata.original_video.event}")
-print(f"是否为单帧: {segment_metadata.segment_info.is_single_frame()}")
+print(f"片段 ID: {clip_metadata.id}")
+print(f"运动项目: {clip_metadata.origin.sport}")
+print(f"比赛事件: {clip_metadata.origin.event}")
+print(f"是否为单帧: {clip_metadata.info.is_single_frame()}")
 
 # 验证元数据（不检查文件存在性）
 is_valid, error = InputAdapter.validate_metadata(
-    segment_metadata,
+    clip_metadata,
     check_file_existence=False
 )
 
@@ -188,7 +188,7 @@ print(f"标注器任务: {annotator.get_task_name()}")
 print(f"任务类别: {annotator.get_task_l1()}")
 
 # 如果有真实视频文件，可以执行标注
-# annotation = annotator.annotate(segment_metadata, config.dataset_root)
+# annotation = annotator.annotate(clip_metadata, config.dataset_root)
 # print(annotation)
 ```
 
@@ -236,8 +236,8 @@ output/
 
 ```json
 {
-  "segment_id": 5,
-  "original_video": {
+  "id": "1",
+  "origin": {
     "sport": "Archery",
     "event": "Men's_Individual"
   },
@@ -257,8 +257,8 @@ output/
 
 ### 字段说明
 
-- `segment_id`: 片段唯一标识
-- `original_video`: 原始视频信息
+- `id`: 片段唯一标识
+- `origin`: 原始视频来源信息
 - `annotations`: 标注列表
   - `annotation_id`: 标注唯一标识
   - `task_L1`: 任务一级分类（Perception/Understanding）
@@ -326,11 +326,10 @@ print(f"验证结果: {'通过' if is_valid else f'失败 - {error}'}")
 
 ```json
 {
-  "segment_id": 5,
-  "original_video": {...},
-  "segment_info": {...},
-  "tasks_to_annotate": ["ScoreboardSingle"],
-  "additional_info": {}
+  "id": 5,
+  "origin": {...},
+  "info": {...},
+  "tasks_to_annotate": ["ScoreboardSingle"]
 }
 ```
 

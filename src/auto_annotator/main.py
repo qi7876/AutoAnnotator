@@ -4,7 +4,7 @@ import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import List
+from typing import Iterable, List, Tuple
 
 from .adapters import InputAdapter, ClipMetadata
 from .annotators import GeminiClient, TaskAnnotatorFactory
@@ -63,7 +63,7 @@ def process_segment(
         Path to output JSON file
     """
     logger = logging.getLogger(__name__)
-    logger.info(f"Processing segment: {segment_metadata.segment_id}")
+    logger.info(f"Processing clip: {segment_metadata.id}")
 
     # Validate segment metadata
     is_valid, error = InputAdapter.validate_metadata(
@@ -71,13 +71,40 @@ def process_segment(
         dataset_root=dataset_root
     )
     if not is_valid:
-        logger.error(f"Invalid segment metadata: {error}")
-        raise ValueError(f"Invalid segment metadata: {error}")
+        logger.error(f"Invalid clip metadata: {error}")
+        raise ValueError(f"Invalid clip metadata: {error}")
 
-    # Collect annotations for all tasks
+    output_path = output_dir / f"{segment_metadata.id}.json"
+    existing_output = None
+    completed_tasks: set[str] = set()
+
+    if output_path.exists():
+        try:
+            existing_output = JSONUtils.load_json(output_path)
+            for ann in existing_output.get("annotations", []):
+                task_name = ann.get("task_L2")
+                if task_name:
+                    completed_tasks.add(task_name)
+        except Exception as e:
+            logger.warning(
+                f"Failed to load existing output {output_path}: {e}. "
+                "Re-annotating all tasks."
+            )
+
+    tasks_to_run = [
+        task_name
+        for task_name in segment_metadata.tasks_to_annotate
+        if task_name not in completed_tasks
+    ]
+
+    if not tasks_to_run:
+        logger.info(f"All tasks already annotated for: {segment_metadata.id}")
+        return output_path
+
+    # Collect annotations for missing tasks
     annotations = []
 
-    for task_name in segment_metadata.tasks_to_annotate:
+    for task_name in tasks_to_run:
         logger.info(f"Annotating task: {task_name}")
 
         try:
@@ -109,17 +136,17 @@ def process_segment(
             logger.error(f"Failed to annotate {task_name}: {e}", exc_info=True)
             continue
 
-    # Save annotations to temp output
-    output_path = output_dir / f"{segment_metadata.segment_id}.json"
-
-    output_data = {
-        "segment_id": segment_metadata.segment_id,
-        "original_video": {
-            "sport": segment_metadata.original_video.sport,
-            "event": segment_metadata.original_video.event,
-        },
-        "annotations": annotations
-    }
+    if existing_output:
+        output_data = JSONUtils.merge_annotations(existing_output, annotations)
+    else:
+        output_data = {
+            "id": segment_metadata.id,
+            "origin": {
+                "sport": segment_metadata.origin.sport,
+                "event": segment_metadata.origin.event,
+            },
+            "annotations": annotations
+        }
 
     JSONUtils.save_json(output_data, output_path)
     logger.info(f"Saved {len(annotations)} annotations to {output_path}")
@@ -127,9 +154,57 @@ def process_segment(
     return output_path
 
 
+def _load_segment_metadata(
+    segment_paths: Iterable[Path]
+) -> List[Tuple[Path, ClipMetadata]]:
+    """Load segment metadata files and return pairs of (path, metadata)."""
+    logger = logging.getLogger(__name__)
+    loaded: List[Tuple[Path, ClipMetadata]] = []
+
+    for segment_path in segment_paths:
+        try:
+            logger.info(f"Loading segment metadata: {segment_path}")
+            metadata = InputAdapter.load_from_json(segment_path)
+            loaded.append((segment_path, metadata))
+        except Exception as e:
+            logger.error(f"Failed to load {segment_path}: {e}", exc_info=True)
+            continue
+
+    return loaded
+
+
+def _prune_orphan_outputs(
+    output_dir: Path,
+    valid_clip_ids: set[str]
+):
+    """Remove output files whose source metadata no longer exists."""
+    logger = logging.getLogger(__name__)
+    if not output_dir.exists():
+        return
+
+    for output_path in output_dir.glob("*.json"):
+        try:
+            data = JSONUtils.load_json(output_path)
+        except Exception as e:
+            logger.warning(f"Skipping unreadable output file: {output_path} ({e})")
+            continue
+
+        if not isinstance(data, dict) or "annotations" not in data:
+            continue
+
+        clip_id = data.get("id", output_path.stem)
+        if clip_id not in valid_clip_ids:
+            try:
+                output_path.unlink()
+                logger.info(f"Removed orphan output: {output_path}")
+            except Exception as e:
+                logger.error(f"Failed to remove {output_path}: {e}", exc_info=True)
+
+
 def process_segments_batch(
     segment_paths: List[Path],
-    output_dir: Path
+    output_dir: Path,
+    prune_orphans: bool = False
 ):
     """
     Process a batch of segments.
@@ -150,17 +225,19 @@ def process_segments_batch(
     # Ensure output directory exists
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Load metadata upfront to support incremental behavior
+    loaded_segments = _load_segment_metadata(segment_paths)
+    valid_clip_ids = {metadata.id for _, metadata in loaded_segments}
+
+    if prune_orphans and loaded_segments:
+        _prune_orphan_outputs(output_dir, valid_clip_ids)
+
     # Process each segment
     successful = 0
     failed = 0
 
-    for segment_path in segment_paths:
+    for segment_path, segment_metadata in loaded_segments:
         try:
-            logger.info(f"Loading segment metadata: {segment_path}")
-
-            # Load segment metadata
-            segment_metadata = InputAdapter.load_from_json(segment_path)
-
             # Process segment
             output_path = process_segment(
                 segment_metadata=segment_metadata,
@@ -173,7 +250,7 @@ def process_segments_batch(
             )
 
             successful += 1
-            logger.info(f"Successfully processed segment: {segment_metadata.segment_id}")
+            logger.info(f"Successfully processed clip: {segment_metadata.id}")
 
         except Exception as e:
             failed += 1
@@ -250,7 +327,11 @@ def main():
             return 1
 
         # Process batch
-        process_segments_batch(segment_paths, output_dir)
+        process_segments_batch(
+            segment_paths,
+            output_dir,
+            prune_orphans=segment_path.is_dir()
+        )
 
         return 0
 

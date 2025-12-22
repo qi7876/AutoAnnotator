@@ -72,6 +72,11 @@ process_segments_batch(
 print("批量标注完成！")
 ```
 
+增量更新说明：
+- 当输出目录中已存在 `{clip_id}.json` 时，该片段会被自动跳过。
+- 当以目录形式输入时，会自动删除输出目录中“源元数据已不存在”的标注结果。
+- 若已存在的标注缺少任务，将仅补标缺失任务。
+
 ### 示例 3：只处理特定任务
 
 ```python
@@ -247,27 +252,27 @@ from auto_annotator.config import get_config
 config = get_config()
 
 # 加载元数据
-metadata_path = Path("Dataset/Archery/Men's_Individual/singleframes_dir/5.json")
-segment_metadata = InputAdapter.load_from_json(metadata_path)
+metadata_path = Path("Dataset/Archery/Men's_Individual/frames/1.json")
+clip_metadata = InputAdapter.load_from_json(metadata_path)
 
 # 检查类型
-if segment_metadata.segment_info.is_single_frame():
+if clip_metadata.info.is_single_frame():
     print("✓ 这是单帧图片")
-    print(f"  帧号: {segment_metadata.segment_info.start_frame_in_original}")
-elif segment_metadata.segment_info.is_segment():
+    print(f"  帧号: {clip_metadata.info.original_starting_frame}")
+elif clip_metadata.info.is_clip():
     print("✓ 这是视频片段")
-    print(f"  总帧数: {segment_metadata.segment_info.total_frames}")
+    print(f"  总帧数: {clip_metadata.info.total_frames}")
 
-# 获取路径信息（video_id 自动提取）
-content_path = segment_metadata.get_video_path(config.dataset_root)
-original_video = segment_metadata.get_original_video_path(config.dataset_root)
+# 获取路径信息
+content_path = clip_metadata.get_video_path(config.dataset_root)
+original_video = clip_metadata.get_original_video_path(config.dataset_root)
 
 print(f"内容路径: {content_path}")
 print(f"原始视频: {original_video}")
 
 # 验证元数据
 is_valid, error = InputAdapter.validate_metadata(
-    segment_metadata,
+    clip_metadata,
     dataset_root=config.dataset_root,
     check_file_existence=True
 )
@@ -291,11 +296,11 @@ all_metadata = InputAdapter.load_from_event_directory(event_dir)
 print(f"找到 {len(all_metadata)} 个片段/单帧")
 
 # 统计类型
-segments = [m for m in all_metadata if m.segment_info.is_segment()]
-singleframes = [m for m in all_metadata if m.segment_info.is_single_frame()]
+clips = [m for m in all_metadata if m.info.is_clip()]
+frames = [m for m in all_metadata if m.info.is_single_frame()]
 
-print(f"  视频片段: {len(segments)}")
-print(f"  单帧图片: {len(singleframes)}")
+print(f"  视频片段: {len(clips)}")
+print(f"  单帧图片: {len(frames)}")
 
 # 只加载单帧
 singleframes_only = InputAdapter.load_from_event_directory(
@@ -456,9 +461,9 @@ for sport_dir in dataset_root.iterdir():
                     output_dir=Path("output/temp"),
                     dataset_root=config.dataset_root
                 )
-                print(f"      ✓ {metadata.segment_id}")
+                print(f"      ✓ {metadata.id}")
             except Exception as e:
-                print(f"      ✗ {metadata.segment_id}: {e}")
+                print(f"      ✗ {metadata.id}: {e}")
 
 print("\n批量处理完成！")
 ```

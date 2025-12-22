@@ -93,66 +93,56 @@ Dataset/
         ├── {video_id}.mp4      # 原始视频文件（1.mp4, 2.mp4, ...）
         ├── {video_id}.json     # 原始视频元数据
         ├── metainfo.json       # 事件级元信息
-        ├── segment_dir/        # 视频片段目录
-        │   ├── {segment_id}.mp4
-        │   └── {segment_id}.json
-        └── singleframes_dir/   # 单帧图片目录
-            ├── {segment_id}.jpg
-            └── {segment_id}.json
+        ├── clips/              # 视频片段目录
+        │   ├── {id}.mp4
+        │   └── {id}.json
+        └── frames/             # 单帧图片目录
+            ├── {id}.jpg
+            └── {id}.json
 ```
 
 ### 元数据格式
 
-**视频片段**（`segment_dir/`）：
+**视频片段**（`clips/`）：
 
 ```json
 {
-  "segment_id": "1_split_7_start_000652",
-  "original_video": {
+  "id": "1",
+  "origin": {
     "sport": "3x3_Basketball",
     "event": "Men"
   },
-  "segment_info": {
-    "start_frame_in_original": 6520,
+  "info": {
+    "original_starting_frame": 6520,
     "total_frames": 70,
-    "fps": 10.0,
-    "duration_sec": 7.0,
-    "resolution": [1920, 1080]
+    "fps": 10.0
   },
-  "tasks_to_annotate": ["UCE", "Continuous_Actions_Caption"],
-  "additional_info": {
-    "description": "从第 6520 帧开始的 70 帧视频片段"
-  }
+  "tasks_to_annotate": ["UCE", "Continuous_Actions_Caption"]
 }
 ```
 
-**单帧图片**（`singleframes_dir/`）：
+**单帧图片**（`frames/`）：
 
 ```json
 {
-  "segment_id": 5,
-  "original_video": {
+  "id": "1",
+  "origin": {
     "sport": "Archery",
     "event": "Men's_Individual"
   },
-  "segment_info": {
-    "start_frame_in_original": 7462,
+  "info": {
+    "original_starting_frame": 7462,
     "total_frames": 1,
-    "fps": 10.0,
-    "duration_sec": 0.1,
-    "resolution": [1920, 1080]
+    "fps": 10.0
   },
-  "tasks_to_annotate": ["ScoreboardSingle"],
-  "additional_info": {
-    "description": "在时间 746.2 秒提取的单帧"
-  }
+  "tasks_to_annotate": ["ScoreboardSingle"]
 }
 ```
 
 **关键特性**：
 - 片段和单帧使用**统一的元数据格式**
 - 通过 `total_frames` 区分类型（1 = 单帧，>1 = 片段）
-- `video_id` 自动从 `segment_id` 提取，无需单独存储
+- 简化的 ID 格式，与文件名保持一致
 
 详细说明请参考：[docs/DATASET_STRUCTURE.md](docs/DATASET_STRUCTURE.md)
 
@@ -204,14 +194,14 @@ bbox_annotator = BBoxAnnotator(gemini_client)
 tracker = ObjectTracker()
 
 # 加载片段元数据
-segment_metadata = InputAdapter.load_from_json(
-    Path("Dataset/Archery/Men's_Individual/singleframes_dir/5.json")
+clip_metadata = InputAdapter.load_from_json(
+    Path("Dataset/Archery/Men's_Individual/frames/1.json")
 )
 
 # 判断类型
-if segment_metadata.segment_info.is_single_frame():
+if clip_metadata.info.is_single_frame():
     print("这是单帧图片")
-elif segment_metadata.segment_info.is_segment():
+elif clip_metadata.info.is_clip():
     print("这是视频片段")
 
 # 创建特定任务的标注器
@@ -225,14 +215,14 @@ annotator = TaskAnnotatorFactory.create_annotator(
 
 # 执行标注
 annotation = annotator.annotate(
-    segment_metadata,
+    clip_metadata,
     dataset_root=config.dataset_root
 )
 print(annotation)
 
-# 获取路径信息（video_id 自动提取）
-video_path = segment_metadata.get_video_path(config.dataset_root)
-original_video = segment_metadata.get_original_video_path(config.dataset_root)
+# 获取路径信息
+video_path = clip_metadata.get_video_path(config.dataset_root)
+original_video = clip_metadata.get_original_video_path(config.dataset_root)
 ```
 
 ## 📤 输出格式
@@ -241,8 +231,8 @@ original_video = segment_metadata.get_original_video_path(config.dataset_root)
 
 ```json
 {
-  "segment_id": "1_split_7_start_000652",
-  "original_video": {
+  "id": "1",
+  "origin": {
     "sport": "3x3_Basketball",
     "event": "Men"
   },

@@ -38,7 +38,7 @@ class ScoreboardSingleAnnotator(BaseAnnotator):
         dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate scoreboard in a single frame."""
-        logger.info(f"Annotating {self.task_name} for {segment_metadata.segment_id}")
+        logger.info(f"Annotating {self.task_name} for {segment_metadata.id}")
 
         # Upload video
         video_file = self.gemini_client.upload_video(
@@ -96,7 +96,7 @@ class ScoreboardMultipleAnnotator(BaseAnnotator):
         dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate scoreboard changes across multiple frames."""
-        logger.info(f"Annotating {self.task_name} for {segment_metadata.segment_id}")
+        logger.info(f"Annotating {self.task_name} for {segment_metadata.id}")
 
         # Upload video
         video_file = self.gemini_client.upload_video(
@@ -144,7 +144,7 @@ class ObjectsSpatialRelationshipsAnnotator(BaseAnnotator):
         dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate spatial relationships between objects."""
-        logger.info(f"Annotating {self.task_name} for {segment_metadata.segment_id}")
+        logger.info(f"Annotating {self.task_name} for {segment_metadata.id}")
 
         # Upload video
         video_file = self.gemini_client.upload_video(
@@ -219,7 +219,7 @@ class SpatialTemporalGroundingAnnotator(BaseAnnotator):
         dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate spatial-temporal grounding."""
-        logger.info(f"Annotating {self.task_name} for {segment_metadata.segment_id}")
+        logger.info(f"Annotating {self.task_name} for {segment_metadata.id}")
 
         # Upload video
         video_file = self.gemini_client.upload_video(
@@ -245,27 +245,24 @@ class SpatialTemporalGroundingAnnotator(BaseAnnotator):
                     first_frame
                 )
 
-                # TODO: Use bbox_annotator and tracker
-                # first_bbox = self.bbox_annotator.annotate_single_object(
-                #     frame_path, first_frame_desc
-                # )
-                #
-                # tracking_result = self.tracker.track_from_first_bbox(
-                #     segment_metadata.get_video_path(dataset_root),
-                #     first_bbox,
-                #     a_window[0],
-                #     a_window[1]
-                # )
-                #
-                # result["first_bounding_box"] = first_bbox.to_list()
-                # result["tracking_bboxes"] = [
-                #     bbox.to_list() for bbox in tracking_result.bboxes
-                # ]
-
-                logger.warning(
-                    "Bounding box and tracking not implemented. "
-                    "Keeping first frame description only."
+                first_bbox = self.bbox_annotator.annotate_single_object(
+                    frame_path, first_frame_desc
                 )
+
+                first_bboxes_with_label = [{
+                    "bbox": first_bbox.to_list(),
+                    "label": first_frame_desc
+                }]
+
+                tracking_result = self.tracker.track_from_first_bbox(
+                    segment_metadata.get_video_path(dataset_root),
+                    first_bboxes_with_label,
+                    a_window[0],
+                    a_window[1]
+                )
+
+                result["first_bounding_box"] = first_bbox.to_list()
+                result["tracking_bboxes"] = tracking_result.to_dict()
 
             # Add metadata
             result = self.add_metadata_fields(result)
@@ -292,7 +289,7 @@ class ContinuousActionsCaptionAnnotator(BaseAnnotator):
         dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate continuous actions."""
-        logger.info(f"Annotating {self.task_name} for {segment_metadata.segment_id}")
+        logger.info(f"Annotating {self.task_name} for {segment_metadata.id}")
 
         # Upload video
         video_file = self.gemini_client.upload_video(
@@ -341,7 +338,7 @@ class ContinuousEventsCaptionAnnotator(BaseAnnotator):
         dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate continuous events."""
-        logger.info(f"Annotating {self.task_name} for {segment_metadata.segment_id}")
+        logger.info(f"Annotating {self.task_name} for {segment_metadata.id}")
 
         # Upload video
         video_file = self.gemini_client.upload_video(
@@ -401,7 +398,7 @@ class ObjectTrackingAnnotator(BaseAnnotator):
         dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate object tracking."""
-        logger.info(f"Annotating {self.task_name} for {segment_metadata.segment_id}")
+        logger.info(f"Annotating {self.task_name} for {segment_metadata.id}")
 
         # Upload video
         video_file = self.gemini_client.upload_video(

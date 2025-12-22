@@ -85,10 +85,10 @@ class BaseAnnotator(ABC):
             Dictionary of template variables
         """
         return {
-            "num_first_frame": segment_metadata.segment_info.start_frame_in_original,
-            "total_frames": segment_metadata.segment_info.total_frames,
-            "fps": segment_metadata.segment_info.fps,
-            "duration_sec": segment_metadata.segment_info.duration_sec,
+            "num_first_frame": segment_metadata.info.original_starting_frame,
+            "total_frames": segment_metadata.info.total_frames,
+            "fps": segment_metadata.info.fps,
+            "duration_sec": segment_metadata.info.total_frames / segment_metadata.info.fps,
         }
 
     def load_prompt(
