@@ -63,7 +63,7 @@ def process_segment(
         Path to output JSON file
     """
     logger = logging.getLogger(__name__)
-    logger.info(f"Processing segment: {segment_metadata.segment_id}")
+    logger.info(f"Processing segment: {segment_metadata.id}")
 
     # Validate segment metadata
     is_valid, error = InputAdapter.validate_metadata(
@@ -110,13 +110,13 @@ def process_segment(
             continue
 
     # Save annotations to temp output
-    output_path = output_dir / f"{segment_metadata.segment_id}.json"
+    output_path = output_dir / f"{segment_metadata.id}.json"
 
     output_data = {
-        "segment_id": segment_metadata.segment_id,
+        "segment_id": segment_metadata.id,
         "original_video": {
-            "sport": segment_metadata.original_video.sport,
-            "event": segment_metadata.original_video.event,
+            "sport": segment_metadata.origin.sport,
+            "event": segment_metadata.origin.event,
         },
         "annotations": annotations
     }

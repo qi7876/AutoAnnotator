@@ -14,7 +14,7 @@ from pathlib import Path
 import cv2
 
 # 添加项目根目录到 Python 路径
-project_root = Path(__file__).parent
+project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 # 设置日志
@@ -311,7 +311,7 @@ def main():
         # 2. 加载 segment metadata
         logger.info(f"加载 segment metadata: {segment_metadata_path}")
         segment_metadata = InputAdapter.load_from_json(segment_metadata_path)
-        logger.info(f"Segment ID: {segment_metadata.segment_id}")
+        logger.info(f"Segment ID: {segment_metadata.id}")
         logger.info(f"视频路径: {segment_metadata.get_video_path()}")
         logger.info(f"任务列表: {segment_metadata.tasks_to_annotate}")
         
@@ -359,7 +359,7 @@ def main():
         output_dir.mkdir(parents=True, exist_ok=True)
         
         timestamp = int(time.time())
-        json_output_path = output_dir / f"{segment_metadata.segment_id}_{timestamp}.json"
+        json_output_path = output_dir / f"{segment_metadata.id}_{timestamp}.json"
         
         with open(json_output_path, 'w', encoding='utf-8') as f:
             json.dump(annotation_result, f, indent=2, ensure_ascii=False)
