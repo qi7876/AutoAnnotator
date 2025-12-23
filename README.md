@@ -170,6 +170,29 @@ uv run python -m auto_annotator.main path/to/segments/ -o output/custom/
 uv run python -m auto_annotator.main path/to/segments/ -v
 ```
 
+### 数据集标注监测脚本
+
+用于统计每个原始视频元数据 JSON 中的 13 种任务数量，并可按 Source 写入飞书表格 B-N 列。
+
+1. 配置 `config/.env`：
+```env
+APP_ID=your_app_id
+APP_SECRET=your_app_secret
+SPREADSHEET_TOKEN=your_spreadsheet_token
+SHEET_ID=your_sheet_id
+SOURCE=1
+```
+
+2. 本地统计（不上传）：
+```bash
+uv run scripts/monitor.py
+```
+
+3. 统计并上传：
+```bash
+uv run scripts/monitor.py --upload
+```
+
 ### Python API
 
 ```python
