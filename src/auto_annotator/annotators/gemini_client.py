@@ -31,6 +31,23 @@ class GeminiClient:
         logger.info(f"Initialized Gemini client with model: {self.model_name}")
         logger.info(f"Initialized Gemini client with grounding model: {self.grounding_model_name}")
 
+    def _build_generation_config(
+        self,
+        overrides: Optional[Dict[str, Any]] = None
+    ) -> types.GenerateContentConfig:
+        """Build a typed GenerateContentConfig from config dict."""
+        if isinstance(self.generation_config, types.GenerateContentConfig):
+            base_config = self.generation_config
+        else:
+            base_config = types.GenerateContentConfig(**self.generation_config)
+
+        if not overrides:
+            return base_config
+
+        merged = base_config.model_dump()
+        merged.update(overrides)
+        return types.GenerateContentConfig(**merged)
+
     def upload_video(self, video_path: Path) -> Any:
         """
         Upload a video file to Gemini File API.
@@ -144,19 +161,20 @@ class GeminiClient:
         logger.info("Generating annotation...")
 
         try:
-
             video_file_uri = video_file.uri
-            video_part = types.Part.from_uri(
-                file_uri=video_file_uri,
-                mime_type="video/mp4"
-            )
-            video_part.video_metadata = types.VideoMetadata(
-                fps=self.config.gemini.video_sampling_fps
+            video_part = types.Part(
+                file_data=types.FileData(
+                    file_uri=video_file_uri,
+                    mime_type="video/mp4"
+                ),
+                video_metadata=types.VideoMetadata(
+                    fps=self.config.gemini.video_sampling_fps
+                )
             )
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=[video_part, prompt],
-                config=self.generation_config
+                config=self._build_generation_config()
             )
 
             # Parse JSON response
@@ -190,10 +208,17 @@ class GeminiClient:
         logger.info("Generating image annotation...")
 
         try:
+            mime_type = getattr(image_file, "mime_type", None)
+            image_part = types.Part(
+                file_data=types.FileData(
+                    file_uri=image_file.uri,
+                    mime_type=mime_type or "image/jpeg"
+                )
+            )
             response = self.client.models.generate_content(
                 model=self.model_name,
-                contents=[image_file, prompt],
-                config=self.generation_config,
+                contents=[image_part, prompt],
+                config=self._build_generation_config(),
             )
 
             result = self._parse_json_response(response.text)

@@ -15,6 +15,30 @@ prompt_loader = PromptLoader()
 bbox_annotator = BBoxAnnotator(gemini_client)
 tracker = ObjectTracker()
 
+def iter_metadata_files(event_dir: Path) -> list[Path]:
+    metadata_files: list[Path] = []
+    for sub_dir in ("clips", "frames"):
+        candidate_dir = event_dir / sub_dir
+        if not candidate_dir.exists():
+            continue
+        for json_path in candidate_dir.glob("*.json"):
+            if json_path.stem.startswith("annotation_"):
+                continue
+            metadata_files.append(json_path)
+    return metadata_files
+
+
+def get_output_dir(metadata) -> Path:
+    sub_dir = "frames" if metadata.info.is_single_frame() else "clips"
+    return (
+        Path(config.project_root)
+        / config.output.temp_dir
+        / metadata.origin.sport
+        / metadata.origin.event
+        / sub_dir
+    )
+
+
 # 遍历所有运动项目
 for sport_dir in dataset_root.iterdir():
     if not sport_dir.is_dir():
@@ -29,8 +53,13 @@ for sport_dir in dataset_root.iterdir():
 
         print(f"  处理事件: {event_dir.name}")
 
-        # 加载所有元数据
-        metadata_list = InputAdapter.load_from_event_directory(event_dir)
+        metadata_files = iter_metadata_files(event_dir)
+        metadata_list = []
+        for json_path in metadata_files:
+            try:
+                metadata_list.append(InputAdapter.load_from_json(json_path))
+            except Exception as e:
+                print(f"    ✗ 读取失败: {json_path.name}: {e}")
 
         print(f"    找到 {len(metadata_list)} 个片段/单帧")
 
@@ -43,10 +72,10 @@ for sport_dir in dataset_root.iterdir():
                     prompt_loader=prompt_loader,
                     bbox_annotator=bbox_annotator,
                     tracker=tracker,
-                    output_dir=Path("output/temp"),
+                    output_dir=get_output_dir(metadata),
                     dataset_root=config.dataset_root
                 )
-                print(f"      ✓ {metadata.id}")
+                print(f"      ✓ {metadata.id} -> {output_path}")
             except Exception as e:
                 print(f"      ✗ {metadata.id}: {e}")
 
