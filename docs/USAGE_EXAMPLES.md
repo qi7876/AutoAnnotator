@@ -32,11 +32,11 @@ gemini_client = GeminiClient()
 prompt_loader = PromptLoader()
 bbox_annotator = BBoxAnnotator(gemini_client)
 tracker = ObjectTracker()
-output_dir = Path("output/temp")
+output_dir = Path("data/output/temp")
 
 # 加载片段元数据
 segment_metadata = InputAdapter.load_from_json(
-    Path("Dataset/Archery/Men's_Individual/singleframes_dir/5.json")
+    Path("data/Dataset/Archery/Men's_Individual/singleframes_dir/5.json")
 )
 
 # 处理标注
@@ -60,8 +60,8 @@ from pathlib import Path
 from auto_annotator.main import process_segments_batch
 
 # 处理目录中的所有片段
-segments_dir = Path("Dataset/3x3_Basketball/Men/segment_dir")
-output_dir = Path("output/temp")
+segments_dir = Path("data/Dataset/3x3_Basketball/Men/segment_dir")
+output_dir = Path("data/output/temp")
 
 # 批量处理
 process_segments_batch(
@@ -85,7 +85,7 @@ from auto_annotator import InputAdapter
 
 # 加载片段元数据
 segment_metadata = InputAdapter.load_from_json(
-    Path("Dataset/Archery/Men's_Individual/segment_dir/1_split_1_start_000292.json")
+    Path("data/Dataset/Archery/Men's_Individual/segment_dir/1_split_1_start_000292.json")
 )
 
 # 只标注计分板理解任务
@@ -130,7 +130,7 @@ annotator = TaskAnnotatorFactory.create_annotator(
 
 # 加载单帧元数据
 segment_metadata = InputAdapter.load_from_json(
-    Path("Dataset/Archery/Men's_Individual/singleframes_dir/5.json")
+    Path("data/Dataset/Archery/Men's_Individual/singleframes_dir/5.json")
 )
 
 # 执行标注
@@ -179,7 +179,7 @@ annotator = TaskAnnotatorFactory.create_annotator(
 
 # 加载视频片段元数据
 segment_metadata = InputAdapter.load_from_json(
-    Path("Dataset/3x3_Basketball/Men/segment_dir/1_split_7_start_000652.json")
+    Path("data/Dataset/3x3_Basketball/Men/segment_dir/1_split_7_start_000652.json")
 )
 
 # 执行标注
@@ -226,7 +226,7 @@ annotator = TaskAnnotatorFactory.create_annotator(
 
 # 加载单帧元数据
 segment_metadata = InputAdapter.load_from_json(
-    Path("Dataset/Archery/Men's_Individual/singleframes_dir/5.json")
+    Path("data/Dataset/Archery/Men's_Individual/singleframes_dir/5.json")
 )
 
 # 执行标注
@@ -252,7 +252,7 @@ from auto_annotator.config import get_config
 config = get_config()
 
 # 加载元数据
-metadata_path = Path("Dataset/Archery/Men's_Individual/frames/1.json")
+metadata_path = Path("data/Dataset/Archery/Men's_Individual/frames/1.json")
 clip_metadata = InputAdapter.load_from_json(metadata_path)
 
 # 检查类型
@@ -290,7 +290,7 @@ from pathlib import Path
 from auto_annotator import InputAdapter
 
 # 加载事件目录下的所有元数据
-event_dir = Path("Dataset/Archery/Men's_Individual")
+event_dir = Path("data/Dataset/Archery/Men's_Individual")
 all_metadata = InputAdapter.load_from_event_directory(event_dir)
 
 print(f"找到 {len(all_metadata)} 个片段/单帧")
@@ -334,12 +334,12 @@ tracker = ObjectTracker()
 
 # 自定义输出目录（按日期）
 from datetime import datetime
-output_dir = Path(f"output/annotations_{datetime.now().strftime('%Y%m%d')}")
+output_dir = Path(f"data/output/annotations_{datetime.now().strftime('%Y%m%d')}")
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # 加载并处理
 segment_metadata = InputAdapter.load_from_json(
-    Path("Dataset/Archery/Men's_Individual/singleframes_dir/5.json")
+    Path("data/Dataset/Archery/Men's_Individual/singleframes_dir/5.json")
 )
 
 output_path = process_segment(
@@ -404,7 +404,7 @@ def safe_annotate(metadata_path: Path):
 
 # 使用
 result = safe_annotate(
-    Path("Dataset/Archery/Men's_Individual/singleframes_dir/5.json")
+    Path("data/Dataset/Archery/Men's_Individual/singleframes_dir/5.json")
 )
 ```
 
@@ -458,7 +458,7 @@ for sport_dir in dataset_root.iterdir():
                     prompt_loader=prompt_loader,
                     bbox_annotator=bbox_annotator,
                     tracker=tracker,
-                    output_dir=Path("output/temp"),
+                    output_dir=Path("data/output/temp"),
                     dataset_root=config.dataset_root
                 )
                 print(f"      ✓ {metadata.id}")
@@ -499,7 +499,7 @@ def process_single_metadata(metadata_path: Path):
             prompt_loader=prompt_loader,
             bbox_annotator=bbox_annotator,
             tracker=tracker,
-            output_dir=Path("output/temp"),
+            output_dir=Path("data/output/temp"),
             dataset_root=config.dataset_root
         )
         return (metadata_path.name, True, None)
@@ -507,7 +507,7 @@ def process_single_metadata(metadata_path: Path):
         return (metadata_path.name, False, str(e))
 
 # 收集所有元数据文件
-event_dir = Path("Dataset/Archery/Men's_Individual")
+event_dir = Path("data/Dataset/Archery/Men's_Individual")
 all_json_files = list(event_dir.glob("**/*.json"))
 all_json_files = [f for f in all_json_files if not f.name.startswith("annotation_")]
 
@@ -556,8 +556,8 @@ config = get_config()
 
 # 显示当前配置
 print(f"Gemini 模型: {config.gemini.model}")
-print(f"上传超时: {config.gemini.upload_timeout_sec}秒")
-print(f"请求超时: {config.gemini.request_timeout_sec}秒")
+print(f"上传超时: {config.gemini.video['upload_timeout_sec']}秒")
+print(f"处理超时: {config.gemini.video['processing_timeout_sec']}秒")
 
 # 可以在 config/config.yaml 中修改这些参数
 ```
@@ -567,11 +567,11 @@ print(f"请求超时: {config.gemini.request_timeout_sec}秒")
 - [README](../README.md) - 完整文档
 - [快速入门](QUICKSTART.md) - 快速上手指南
 - [数据集结构](DATASET_STRUCTURE.md) - 数据组织说明
-- [元数据 Schema](segment_metadata_schema.json) - JSON 格式定义
+- [元数据 Schema](clip_metadata_schema.json) - JSON 格式定义
 
 ## 🆘 需要帮助？
 
 如果遇到问题，请查看：
 1. [故障排除部分](../README.md#-故障排除)
-2. 运行测试脚本：`uv run python scripts/test_input_adapter.py`
+2. 运行测试脚本：`uv run python scripts/manual_tests/test_input_adapter.py`
 3. 检查日志文件：`logs/auto_annotator.log`

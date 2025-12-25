@@ -105,7 +105,7 @@ class TestPathConstruction:
         }
 
         metadata = InputAdapter.create_from_dict(data)
-        expected_path = Path("Dataset/3x3_Basketball/Men/clips/1.mp4")
+        expected_path = Path("data/Dataset/3x3_Basketball/Men/clips/1.mp4")
         assert metadata.get_video_path() == expected_path
 
         # Test with custom dataset root
@@ -123,11 +123,11 @@ class TestPathConstruction:
         }
 
         metadata = InputAdapter.create_from_dict(data)
-        expected_path = Path("Dataset/Archery/Men's_Individual/frames/1.jpg")
+        expected_path = Path("data/Dataset/Archery/Men's_Individual/frames/1.jpg")
         assert metadata.get_video_path() == expected_path
 
         # Test JSON path
-        expected_json_path = Path("Dataset/Archery/Men's_Individual/frames/1.json")
+        expected_json_path = Path("data/Dataset/Archery/Men's_Individual/frames/1.json")
         assert metadata.get_json_path() == expected_json_path
 
     def test_original_video_path(self):
@@ -142,11 +142,11 @@ class TestPathConstruction:
         metadata = InputAdapter.create_from_dict(data)
 
         # Default to video_id = "1"
-        expected_path = Path("Dataset/3x3_Basketball/Men/1.mp4")
+        expected_path = Path("data/Dataset/3x3_Basketball/Men/1.mp4")
         assert metadata.get_original_video_path() == expected_path
 
         # Test with specific video_id
-        expected_path = Path("Dataset/3x3_Basketball/Men/2.mp4")
+        expected_path = Path("data/Dataset/3x3_Basketball/Men/2.mp4")
         assert metadata.get_original_video_path(video_id="2") == expected_path
 
     def test_custom_dataset_root(self):
@@ -260,19 +260,19 @@ class TestOriginInfo:
         origin = OriginInfo(sport="3x3_Basketball", event="Men")
 
         # Test default video_id
-        expected_path = Path("Dataset/3x3_Basketball/Men/1.mp4")
+        expected_path = Path("data/Dataset/3x3_Basketball/Men/1.mp4")
         assert origin.get_video_path() == expected_path
 
         # Test custom video_id
-        expected_path = Path("Dataset/3x3_Basketball/Men/2.mp4")
+        expected_path = Path("data/Dataset/3x3_Basketball/Men/2.mp4")
         assert origin.get_video_path(video_id="2") == expected_path
 
         # Test JSON path
-        expected_json = Path("Dataset/3x3_Basketball/Men/1.json")
+        expected_json = Path("data/Dataset/3x3_Basketball/Men/1.json")
         assert origin.get_json_path() == expected_json
 
         # Test metainfo path
-        expected_metainfo = Path("Dataset/3x3_Basketball/Men/metainfo.json")
+        expected_metainfo = Path("data/Dataset/3x3_Basketball/Men/metainfo.json")
         assert origin.get_metainfo_path() == expected_metainfo
 
     def test_origin_custom_root(self):

@@ -3,7 +3,7 @@
 ## 数据集目录结构
 
 ```
-Dataset/
+data/Dataset/
 └── {Sport}/                    # 运动项目名称（如：Archery, 3x3_Basketball）
     └── {Event}/                # 比赛事件名称（如：Men's_Individual, Men, Women's_Team）
         ├── {video_id}.mp4      # 原始视频文件（如：1.mp4, 2.mp4, 3.mp4）
@@ -20,7 +20,7 @@ Dataset/
 ## 示例：Archery 项目
 
 ```
-Dataset/
+data/Dataset/
 └── Archery/
     └── Men's_Individual/
         ├── 1.json
@@ -116,17 +116,17 @@ ID 与文件名一致（不包含扩展名）。
 ## 路径构造规则
 
 ### 原始视频
-- **视频文件**: `Dataset/{sport}/{event}/{video_id}.mp4`
-- **元数据文件**: `Dataset/{sport}/{event}/{video_id}.json`
-- **事件元信息**: `Dataset/{sport}/{event}/metainfo.json`
+- **视频文件**: `data/Dataset/{sport}/{event}/{video_id}.mp4`
+- **元数据文件**: `data/Dataset/{sport}/{event}/{video_id}.json`
+- **事件元信息**: `data/Dataset/{sport}/{event}/metainfo.json`
 
 ### 视频片段
-- **视频文件**: `Dataset/{sport}/{event}/clips/{id}.mp4`
-- **元数据文件**: `Dataset/{sport}/{event}/clips/{id}.json`
+- **视频文件**: `data/Dataset/{sport}/{event}/clips/{id}.mp4`
+- **元数据文件**: `data/Dataset/{sport}/{event}/clips/{id}.json`
 
 ### 单帧图片
-- **图片文件**: `Dataset/{sport}/{event}/frames/{id}.jpg`
-- **元数据文件**: `Dataset/{sport}/{event}/frames/{id}.json`
+- **图片文件**: `data/Dataset/{sport}/{event}/frames/{id}.jpg`
+- **元数据文件**: `data/Dataset/{sport}/{event}/frames/{id}.json`
 
 ## 使用示例
 
@@ -136,16 +136,16 @@ from auto_annotator.adapters import InputAdapter
 
 # 加载单帧元数据
 metadata = InputAdapter.load_from_json(
-    Path("Dataset/Archery/Men's_Individual/frames/1.json")
+    Path("data/Dataset/Archery/Men's_Individual/frames/1.json")
 )
 
 # 获取图片路径
 image_path = metadata.get_video_path(Path("Dataset"))
-# 返回: Dataset/Archery/Men's_Individual/frames/1.jpg
+# 返回: data/Dataset/Archery/Men's_Individual/frames/1.jpg
 
 # 获取原始视频路径
 original_video = metadata.get_original_video_path(Path("Dataset"), video_id="1")
-# 返回: Dataset/Archery/Men's_Individual/1.mp4
+# 返回: data/Dataset/Archery/Men's_Individual/1.mp4
 
 # 检查类型
 if metadata.info.is_single_frame():
@@ -155,21 +155,21 @@ elif metadata.info.is_clip():
 
 # 加载片段元数据
 clip = InputAdapter.load_from_json(
-    Path("Dataset/3x3_Basketball/Men/clips/1.json")
+    Path("data/Dataset/3x3_Basketball/Men/clips/1.json")
 )
 
 # 获取片段视频路径
 video_path = clip.get_video_path(Path("Dataset"))
-# 返回: Dataset/3x3_Basketball/Men/clips/1.mp4
+# 返回: data/Dataset/3x3_Basketball/Men/clips/1.mp4
 
 # 加载事件目录下的所有元数据
 all_metadata = InputAdapter.load_from_event_directory(
-    Path("Dataset/Archery/Men's_Individual")
+    Path("data/Dataset/Archery/Men's_Individual")
 )
 
 # 只加载单帧元数据
 singleframe_metadata = InputAdapter.load_from_event_directory(
-    Path("Dataset/Archery/Men's_Individual"),
+    Path("data/Dataset/Archery/Men's_Individual"),
     single_frame_only=True
 )
 ```

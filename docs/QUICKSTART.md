@@ -73,7 +73,7 @@ GEMINI_API_KEY=your_api_key_here
 PROJECT_ROOT=/path/to/AutoAnnotator
 
 # 数据集根目录
-DATASET_ROOT=/path/to/Dataset
+DATASET_ROOT=/path/to/AutoAnnotator/data/Dataset
 ```
 
 ### 5. 验证安装
@@ -91,7 +91,7 @@ uv run python -c "from auto_annotator import get_config; print('✓ 安装成功
 AutoAnnotator 需要以下目录结构：
 
 ```
-Dataset/
+data/Dataset/
 └── {Sport}/
     └── {Event}/
         ├── 1.mp4                    # 原始视频
@@ -124,8 +124,8 @@ cat examples/example_singleframe_metadata.json
 
 ```bash
 # 如果你有真实的数据集
-uv run python examples/test_scoreboard_single_real.py \
-    Dataset/Archery/Men\'s_Individual/singleframes_dir/5.json
+uv run python scripts/manual_tests/test_scoreboard_single_real.py \
+    data/Dataset/Archery/Men\'s_Individual/singleframes_dir/5.json
 ```
 
 ### 示例 2：使用 Python API
@@ -205,16 +205,16 @@ uv run python test_annotation.py
 ```bash
 # 处理整个目录
 uv run python -m auto_annotator.main \
-    Dataset/Archery/Men\'s_Individual/singleframes_dir/
+    data/Dataset/Archery/Men\'s_Individual/singleframes_dir/
 
 # 指定输出目录
 uv run python -m auto_annotator.main \
-    Dataset/Archery/Men\'s_Individual/segment_dir/ \
-    -o output/archery_annotations/
+    data/Dataset/Archery/Men\'s_Individual/segment_dir/ \
+    -o data/output/archery_annotations/
 
 # 启用详细日志
 uv run python -m auto_annotator.main \
-    Dataset/Archery/Men\'s_Individual/segment_dir/ \
+    data/Dataset/Archery/Men\'s_Individual/segment_dir/ \
     -v
 ```
 
@@ -222,10 +222,10 @@ uv run python -m auto_annotator.main \
 
 ### 输出结构
 
-标注结果保存在 `output/temp/` 目录：
+标注结果保存在 `data/output/temp/` 目录：
 
 ```
-output/
+data/output/
 └── temp/
     └── Archery/
         └── Men's_Individual/
@@ -291,7 +291,7 @@ print(f'密钥长度: {len(config.gemini.api_key) if config.gemini.api_key else 
 ### Q3: 如何验证元数据格式？
 
 ```bash
-uv run python scripts/test_input_adapter.py
+uv run python scripts/manual_tests/test_input_adapter.py
 ```
 
 或者：

@@ -2,7 +2,7 @@
 """
 Object Tracking 标注器真实测试脚本
 
-这个脚本类似于 test_scoreboard_single_real.py，用于测试目标跟踪的完整标注流程。
+这个脚本类似于 scripts/manual_tests/test_scoreboard_single_real.py，用于测试目标跟踪的完整标注流程。
 它会真实调用 ObjectTrackingAnnotator 进行标注，并可视化结果。
 """
 
@@ -355,7 +355,7 @@ def main():
         annotation_result = annotator.annotate(segment_metadata)
         
         # 6. 保存JSON结果
-        output_dir = Path("output/object_tracking_results")
+        output_dir = Path("data/output/object_tracking_results")
         output_dir.mkdir(parents=True, exist_ok=True)
         
         timestamp = int(time.time())

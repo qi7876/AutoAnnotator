@@ -20,8 +20,8 @@ gemini:
 
 # Output settings
 output:
-  temp_dir: "output/temp"
-  final_dir: "output/final"
+  temp_dir: "data/output/temp"
+  final_dir: "data/output/final"
   keep_temp_files: false
 
 # Task configuration

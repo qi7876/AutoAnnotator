@@ -70,7 +70,7 @@ uv run python -c "from auto_annotator import get_config; print('安装成功！'
 ```env
 GEMINI_API_KEY=your_api_key_here
 PROJECT_ROOT=/path/to/AutoAnnotator
-DATASET_ROOT=/path/to/Dataset
+DATASET_ROOT=/path/to/AutoAnnotator/data/Dataset
 ```
 
 ### 配置文件
@@ -87,7 +87,7 @@ DATASET_ROOT=/path/to/Dataset
 ### 目录组织
 
 ```
-Dataset/
+data/Dataset/
 └── {运动项目}/              # 如：Archery, 3x3_Basketball
     └── {比赛事件}/          # 如：Men's_Individual, Men
         ├── {video_id}.mp4      # 原始视频文件（1.mp4, 2.mp4, ...）
@@ -162,7 +162,7 @@ uv run python -m auto_annotator.main path/to/segments_dir/
 
 指定自定义输出目录：
 ```bash
-uv run python -m auto_annotator.main path/to/segments/ -o output/custom/
+uv run python -m auto_annotator.main path/to/segments/ -o data/output/custom/
 ```
 
 启用详细日志：
@@ -218,7 +218,7 @@ tracker = ObjectTracker()
 
 # 加载片段元数据
 clip_metadata = InputAdapter.load_from_json(
-    Path("Dataset/Archery/Men's_Individual/frames/1.json")
+    Path("data/Dataset/Archery/Men's_Individual/frames/1.json")
 )
 
 # 判断类型
@@ -297,17 +297,19 @@ AutoAnnotator/
 │   ├── config.py             # 配置管理
 │   └── main.py               # 主入口
 ├── scripts/                  # 辅助脚本
-│   └── test_input_adapter.py # 适配器测试
+│   └── manual_tests/          # 手动测试脚本
+│       ├── test_input_adapter.py
+│       ├── test_object_tracking_real_fixed.py
+│       └── test_scoreboard_single_real.py
 ├── examples/                 # 示例文件
 │   ├── example_segment_metadata.json
-│   ├── example_singleframe_metadata.json
-│   └── test_scoreboard_single_real.py
+│   └── example_singleframe_metadata.json
 ├── docs/                     # 文档
 │   ├── DATASET_STRUCTURE.md  # 数据集结构说明
-│   ├── segment_metadata_schema.json  # 元数据 Schema
+│   ├── clip_metadata_schema.json  # 元数据 Schema
 │   └── MIGRATION_GUIDE.md    # 迁移指南
 ├── tests/                    # 单元测试
-└── output/
+└── data/output/
     ├── temp/                 # 临时标注输出
     └── final/                # 最终合并标注
 ```
@@ -327,7 +329,7 @@ uv run pytest tests/test_config.py
 uv run pytest --cov=auto_annotator
 
 # 测试适配器
-uv run python scripts/test_input_adapter.py
+uv run python scripts/manual_tests/test_input_adapter.py
 ```
 
 ### 添加新任务
@@ -393,7 +395,7 @@ python --version  # 应该是 3.10+
 1. 检查 JSON 格式是否正确
 2. 确保 `total_frames` 和 `duration_sec` 一致
 3. 验证文件路径是否存在
-4. 参考 [docs/segment_metadata_schema.json](docs/segment_metadata_schema.json)
+4. 参考 [docs/clip_metadata_schema.json](docs/clip_metadata_schema.json)
 
 ## 🔄 工作流集成
 
@@ -408,7 +410,7 @@ AutoAnnotator 设计为 5 步标注流程中的第 3 步：
 ## 📚 相关文档
 
 - [数据集结构说明](docs/DATASET_STRUCTURE.md) - 详细的目录和元数据格式说明
-- [元数据 Schema](docs/segment_metadata_schema.json) - 完整的 JSON Schema 定义
+- [元数据 Schema](docs/clip_metadata_schema.json) - 完整的 JSON Schema 定义
 - [快速开始指南](docs/QUICKSTART.md) - 快速入门教程（待补充）
 - [使用示例](docs/USAGE_EXAMPLES.md) - 更多使用示例（待补充）
 

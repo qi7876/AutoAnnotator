@@ -150,7 +150,11 @@ if __name__ == "__main__":
         help="工作表 ID，默认从 .env 读取 SHEET_ID"
     )
     parser.add_argument("--upload", action="store_true", help="上传统计结果到飞书")
-    parser.add_argument("--dataset-root", type=str, default=os.getenv("DATASET_ROOT", "Dataset"))
+    parser.add_argument(
+        "--dataset-root",
+        type=str,
+        default=os.getenv("DATASET_ROOT", "data/Dataset")
+    )
     args = parser.parse_args()
 
     APP_ID = os.getenv("APP_ID")

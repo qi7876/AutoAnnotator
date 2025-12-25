@@ -88,13 +88,13 @@
     }
   },
   "file_paths": {
-    "original_video": "Dataset/{sport}/{event}/{video_id}.mp4",
-    "original_video_json": "Dataset/{sport}/{event}/{video_id}.json",
-    "event_metainfo": "Dataset/{sport}/{event}/metainfo.json",
-    "clip_video": "Dataset/{sport}/{event}/clips/{id}.mp4",
-    "clip_json": "Dataset/{sport}/{event}/clips/{id}.json",
-    "frame_image": "Dataset/{sport}/{event}/frames/{id}.jpg",
-    "frame_json": "Dataset/{sport}/{event}/frames/{id}.json"
+    "original_video": "data/Dataset/{sport}/{event}/{video_id}.mp4",
+    "original_video_json": "data/Dataset/{sport}/{event}/{video_id}.json",
+    "event_metainfo": "data/Dataset/{sport}/{event}/metainfo.json",
+    "clip_video": "data/Dataset/{sport}/{event}/clips/{id}.mp4",
+    "clip_json": "data/Dataset/{sport}/{event}/clips/{id}.json",
+    "frame_image": "data/Dataset/{sport}/{event}/frames/{id}.jpg",
+    "frame_json": "data/Dataset/{sport}/{event}/frames/{id}.json"
   },
   "notes": {
     "type_distinction": "Single frames are identified by total_frames == 1, video clips by total_frames > 1. No explicit 'type' field needed.",

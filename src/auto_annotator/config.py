@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 
 import yaml
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class GeminiConfig(BaseModel):
@@ -22,8 +22,8 @@ class GeminiConfig(BaseModel):
 class OutputConfig(BaseModel):
     """Output directory configuration."""
 
-    temp_dir: str = "output/temp"
-    final_dir: str = "output/final"
+    temp_dir: str = "data/output/temp"
+    final_dir: str = "data/output/final"
     keep_temp_files: bool = False
 
 
@@ -58,7 +58,8 @@ class Config(BaseModel):
     project_root: Path = Field(default_factory=Path.cwd)
     dataset_root: Path = Field(default_factory=Path.cwd)
 
-    @validator("project_root", "dataset_root", pre=True)
+    @field_validator("project_root", "dataset_root", mode="before")
+    @classmethod
     def convert_to_path(cls, v):
         """Convert string paths to Path objects."""
         if isinstance(v, str):
@@ -106,7 +107,7 @@ class ConfigManager:
         )
         config_data["dataset_root"] = os.getenv(
             "DATASET_ROOT",
-            str(Path.cwd() / "Dataset")
+            str(Path.cwd() / "data" / "Dataset")
         )
 
         # Validate API key

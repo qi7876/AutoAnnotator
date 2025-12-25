@@ -50,7 +50,7 @@ def test_clip_metadata():
     print(f"  Original video path: {original_path}")
 
     # Verify path format
-    expected_video = "Dataset/3x3_Basketball/Men/clips/1.mp4"
+    expected_video = "data/Dataset/3x3_Basketball/Men/clips/1.mp4"
     assert str(video_path) == expected_video, f"Expected {expected_video}, got {video_path}"
     print("✓ Clip path format is correct")
 
@@ -93,7 +93,7 @@ def test_singleframe_metadata():
     print(f"  Original video path: {original_path}")
 
     # Verify path format
-    expected_image = "Dataset/Archery/Men's_Individual/frames/1.jpg"
+    expected_image = "data/Dataset/Archery/Men's_Individual/frames/1.jpg"
     assert str(image_path) == expected_image, f"Expected {expected_image}, got {image_path}"
     print("✓ Frame path format is correct")
 
@@ -121,13 +121,13 @@ def test_origin_info():
     print(f"  JSON path (id=1): {json_path}")
     print(f"  Metainfo path: {metainfo_path}")
 
-    assert str(video_path) == "Dataset/Archery/Women's_Team/1.mp4"
-    assert str(json_path) == "Dataset/Archery/Women's_Team/1.json"
-    assert str(metainfo_path) == "Dataset/Archery/Women's_Team/metainfo.json"
+    assert str(video_path) == "data/Dataset/Archery/Women's_Team/1.mp4"
+    assert str(json_path) == "data/Dataset/Archery/Women's_Team/1.json"
+    assert str(metainfo_path) == "data/Dataset/Archery/Women's_Team/metainfo.json"
 
     # Test with different video_id
     video_path_2 = origin_info.get_video_path(video_id="7")
-    assert str(video_path_2) == "Dataset/Archery/Women's_Team/7.mp4"
+    assert str(video_path_2) == "data/Dataset/Archery/Women's_Team/7.mp4"
 
     print("✓ Origin video paths are correct")
 

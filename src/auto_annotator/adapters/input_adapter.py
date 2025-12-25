@@ -18,14 +18,14 @@ class OriginInfo(BaseModel):
         Construct the path to the original video file.
 
         Args:
-            dataset_root: Root directory of the dataset. If None, uses "Dataset"
+            dataset_root: Root directory of the dataset. If None, uses "data/Dataset"
             video_id: Video ID (default: "1")
 
         Returns:
             Path to the original video file (e.g., 1.mp4, 2.mp4, etc.)
         """
         if dataset_root is None:
-            dataset_root = Path("Dataset")
+            dataset_root = Path("data") / "Dataset"
 
         return dataset_root / self.sport / self.event / f"{video_id}.mp4"
 
@@ -34,14 +34,14 @@ class OriginInfo(BaseModel):
         Construct the path to the original video's JSON metadata file.
 
         Args:
-            dataset_root: Root directory of the dataset. If None, uses "Dataset"
+            dataset_root: Root directory of the dataset. If None, uses "data/Dataset"
             video_id: Video ID (default: "1")
 
         Returns:
             Path to the original video's JSON file (e.g., 1.json, 2.json, etc.)
         """
         if dataset_root is None:
-            dataset_root = Path("Dataset")
+            dataset_root = Path("data") / "Dataset"
 
         return dataset_root / self.sport / self.event / f"{video_id}.json"
 
@@ -50,13 +50,13 @@ class OriginInfo(BaseModel):
         Construct the path to the event's metainfo.json file.
 
         Args:
-            dataset_root: Root directory of the dataset. If None, uses "Dataset"
+            dataset_root: Root directory of the dataset. If None, uses "data/Dataset"
 
         Returns:
             Path to the metainfo.json file
         """
         if dataset_root is None:
-            dataset_root = Path("Dataset")
+            dataset_root = Path("data") / "Dataset"
 
         return dataset_root / self.sport / self.event / "metainfo.json"
 
@@ -95,17 +95,17 @@ class ClipMetadata(BaseModel):
         """
         Get the path to the clip video or single frame image.
 
-        For clips: Dataset/{sport}/{event}/clips/{id}.mp4
-        For single frames: Dataset/{sport}/{event}/frames/{id}.jpg
+        For clips: data/Dataset/{sport}/{event}/clips/{id}.mp4
+        For single frames: data/Dataset/{sport}/{event}/frames/{id}.jpg
 
         Args:
-            dataset_root: Root directory of the dataset. If None, uses "Dataset"
+            dataset_root: Root directory of the dataset. If None, uses "data/Dataset"
 
         Returns:
             Path to the clip video file or single frame image
         """
         if dataset_root is None:
-            dataset_root = Path("Dataset")
+            dataset_root = Path("data") / "Dataset"
 
         base_path = dataset_root / self.origin.sport / self.origin.event
 
@@ -120,17 +120,17 @@ class ClipMetadata(BaseModel):
         """
         Get the path to the clip's JSON metadata file.
 
-        For clips: Dataset/{sport}/{event}/clips/{id}.json
-        For single frames: Dataset/{sport}/{event}/frames/{id}.json
+        For clips: data/Dataset/{sport}/{event}/clips/{id}.json
+        For single frames: data/Dataset/{sport}/{event}/frames/{id}.json
 
         Args:
-            dataset_root: Root directory of the dataset. If None, uses "Dataset"
+            dataset_root: Root directory of the dataset. If None, uses "data/Dataset"
 
         Returns:
             Path to the clip's JSON metadata file
         """
         if dataset_root is None:
-            dataset_root = Path("Dataset")
+            dataset_root = Path("data") / "Dataset"
 
         base_path = dataset_root / self.origin.sport / self.origin.event
 
@@ -146,7 +146,7 @@ class ClipMetadata(BaseModel):
         Get the path to the original video file.
 
         Args:
-            dataset_root: Root directory of the dataset. If None, uses "Dataset"
+            dataset_root: Root directory of the dataset. If None, uses "data/Dataset"
             video_id: Video ID (if None, defaults to "1")
 
         Returns:
@@ -241,7 +241,7 @@ class InputAdapter:
         Load all clip metadata from an event directory (both clips and frames).
 
         Args:
-            event_dir: Event directory (e.g., Dataset/Archery/Men's_Individual)
+            event_dir: Event directory (e.g., data/Dataset/Archery/Men's_Individual)
             single_frame_only: If True, only load single frame metadata
 
         Returns:
