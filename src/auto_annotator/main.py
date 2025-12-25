@@ -4,7 +4,7 @@ import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
 
 from .adapters import InputAdapter, ClipMetadata
 from .annotators import GeminiClient, TaskAnnotatorFactory
@@ -126,6 +126,7 @@ def process_segment(
                 logger.warning(f"Invalid annotation for {task_name}: {error}")
                 continue
 
+            annotation = _maybe_write_tracking_mot(annotation, segment_metadata)
             annotations.append(annotation)
             logger.info(f"Successfully annotated {task_name}")
 
@@ -152,6 +153,95 @@ def process_segment(
     logger.info(f"Saved {len(annotations)} annotations to {output_path}")
 
     return output_path
+
+
+def _maybe_write_tracking_mot(
+    annotation: Dict[str, Any],
+    segment_metadata: ClipMetadata
+) -> Dict[str, Any]:
+    """Convert tracking_bboxes into MOT file reference when applicable."""
+    tracking = annotation.get("tracking_bboxes")
+    if not isinstance(tracking, dict):
+        return annotation
+
+    mot_rows = _tracking_to_mot_rows(tracking)
+    if not mot_rows:
+        return annotation
+
+    config = get_config()
+    output_root = Path(config.project_root) / config.output.temp_dir
+    mot_dir = (
+        output_root.parent
+        / segment_metadata.origin.sport
+        / segment_metadata.origin.event
+        / "mot"
+    )
+    mot_dir.mkdir(parents=True, exist_ok=True)
+
+    mot_path = mot_dir / f"{segment_metadata.id}.txt"
+    mot_path.write_text("\n".join(mot_rows) + "\n", encoding="utf-8")
+
+    try:
+        mot_ref = str(mot_path.relative_to(Path(config.project_root)))
+    except ValueError:
+        mot_ref = str(mot_path)
+
+    annotation["tracking_bboxes"] = {
+        "mot_file": mot_ref,
+        "format": "MOTChallenge"
+    }
+    return annotation
+
+
+def _tracking_to_mot_rows(tracking: Dict[str, Any]) -> List[str]:
+    """Convert tracking result dict to MOTChallenge rows."""
+    objects = tracking.get("objects", [])
+    if not isinstance(objects, list) or not objects:
+        return []
+
+    frame_numbers: List[int] = []
+    for obj in objects:
+        frames = obj.get("frames", {})
+        for frame_key in frames.keys():
+            try:
+                frame_numbers.append(int(frame_key))
+            except (TypeError, ValueError):
+                continue
+
+    if not frame_numbers:
+        return []
+
+    min_frame = min(frame_numbers)
+    frame_offset = 1 - min_frame if min_frame <= 0 else 0
+
+    rows: List[str] = []
+    for obj in objects:
+        obj_id = int(obj.get("id", 0)) + 1
+        frames = obj.get("frames", {})
+        sortable_frames: List[Tuple[int, Any]] = []
+        for frame_key in frames.keys():
+            try:
+                sortable_frames.append((int(frame_key), frame_key))
+            except (TypeError, ValueError):
+                continue
+        for frame_int, frame_key in sorted(sortable_frames, key=lambda item: item[0]):
+            frame_idx = frame_int + frame_offset
+            bbox = frames.get(frame_key)
+            if not isinstance(bbox, list) or len(bbox) != 4:
+                continue
+            xtl, ytl, xbr, ybr = bbox
+            width = xbr - xtl
+            height = ybr - ytl
+            if width <= 0 or height <= 0:
+                continue
+            row = (
+                f"{frame_idx},{obj_id},"
+                f"{xtl:.2f},{ytl:.2f},{width:.2f},{height:.2f},"
+                "-1,-1,-1,-1"
+            )
+            rows.append(row)
+
+    return rows
 
 
 def _load_segment_metadata(
@@ -219,7 +309,7 @@ def process_segments_batch(
     # Initialize components
     gemini_client = GeminiClient()
     prompt_loader = PromptLoader()
-    bbox_annotator = BBoxAnnotator()
+    bbox_annotator = BBoxAnnotator(gemini_client)
     tracker = ObjectTracker(backend=config.tasks.tracking.get("tracker_backend", "local"))
 
     # Ensure output directory exists

@@ -2,7 +2,7 @@
 """
 Object Tracking 标注器真实测试脚本
 
-这个脚本类似于 scripts/manual_tests/test_scoreboard_single_real.py，用于测试目标跟踪的完整标注流程。
+这个脚本类似于 tests/manual_tests/scoreboard_single_real.py，用于测试目标跟踪的完整标注流程。
 它会真实调用 ObjectTrackingAnnotator 进行标注，并可视化结果。
 """
 

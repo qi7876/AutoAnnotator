@@ -124,7 +124,7 @@ cat examples/example_singleframe_metadata.json
 
 ```bash
 # 如果你有真实的数据集
-uv run python scripts/manual_tests/test_scoreboard_single_real.py \
+uv run python tests/manual_tests/scoreboard_single_real.py \
     data/Dataset/Archery/Men\'s_Individual/singleframes_dir/5.json
 ```
 
@@ -291,7 +291,7 @@ print(f'密钥长度: {len(config.gemini.api_key) if config.gemini.api_key else 
 ### Q3: 如何验证元数据格式？
 
 ```bash
-uv run python scripts/manual_tests/test_input_adapter.py
+uv run python tests/manual_tests/test_input_adapter.py
 ```
 
 或者：

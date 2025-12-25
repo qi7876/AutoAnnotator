@@ -296,11 +296,11 @@ AutoAnnotator/
 │   │   └── json_utils.py          # JSON 工具
 │   ├── config.py             # 配置管理
 │   └── main.py               # 主入口
-├── scripts/                  # 辅助脚本
-│   └── manual_tests/          # 手动测试脚本
-│       ├── test_input_adapter.py
-│       ├── test_object_tracking_real_fixed.py
-│       └── test_scoreboard_single_real.py
+├── tests/                    # 单元测试
+│   ├── manual_tests/          # 手动测试脚本
+│   │   ├── test_input_adapter.py
+│   │   ├── test_object_tracking_real_fixed.py
+│   │   └── test_scoreboard_single_real.py
 ├── examples/                 # 示例文件
 │   ├── example_segment_metadata.json
 │   └── example_singleframe_metadata.json
@@ -329,7 +329,7 @@ uv run pytest tests/test_config.py
 uv run pytest --cov=auto_annotator
 
 # 测试适配器
-uv run python scripts/manual_tests/test_input_adapter.py
+uv run python tests/manual_tests/test_input_adapter.py
 ```
 
 ### 添加新任务

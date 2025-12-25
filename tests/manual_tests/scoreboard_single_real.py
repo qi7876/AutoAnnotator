@@ -5,10 +5,10 @@ This script demonstrates how to use the ScoreboardSingleAnnotator
 with real segment metadata.
 
 Usage:
-    python scripts/manual_tests/test_scoreboard_single_real.py <segment_metadata.json>
+    python tests/manual_tests/scoreboard_single_real.py <segment_metadata.json>
 
 Example:
-    python scripts/manual_tests/test_scoreboard_single_real.py segment_metadata_3.json
+    python tests/manual_tests/scoreboard_single_real.py segment_metadata_3.json
 """
 
 import json
@@ -39,7 +39,7 @@ def main():
 
     # Check command line arguments
     if len(sys.argv) < 2:
-        print("Usage: python scripts/manual_tests/test_scoreboard_single_real.py <segment_metadata.json>")
+        print("Usage: python tests/manual_tests/scoreboard_single_real.py <segment_metadata.json>")
         print("\nExample segment_metadata.json format:")
         print(json.dumps({
             "segment_id": 5,

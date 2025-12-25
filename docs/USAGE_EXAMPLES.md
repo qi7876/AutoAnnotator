@@ -573,5 +573,5 @@ print(f"处理超时: {config.gemini.video['processing_timeout_sec']}秒")
 
 如果遇到问题，请查看：
 1. [故障排除部分](../README.md#-故障排除)
-2. 运行测试脚本：`uv run python scripts/manual_tests/test_input_adapter.py`
+2. 运行测试脚本：`uv run python tests/manual_tests/test_input_adapter.py`
 3. 检查日志文件：`logs/auto_annotator.log`
