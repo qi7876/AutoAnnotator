@@ -13,7 +13,19 @@ dataset_root = Path(config.dataset_root)
 gemini_client = GeminiClient()
 prompt_loader = PromptLoader()
 bbox_annotator = BBoxAnnotator(gemini_client)
-tracker = ObjectTracker()
+model_path_value = config.tasks.tracking.get("model_path")
+model_path = None
+if model_path_value:
+    model_path = Path(model_path_value)
+    if not model_path.is_absolute():
+        model_path = Path(config.project_root) / model_path
+
+tracker = ObjectTracker(
+    backend=config.tasks.tracking.get("tracker_backend", "local"),
+    model_path=model_path,
+    hf_model_id=config.tasks.tracking.get("hf_model_id"),
+    auto_download=config.tasks.tracking.get("auto_download", False)
+)
 
 def iter_metadata_files(event_dir: Path) -> list[Path]:
     metadata_files: list[Path] = []

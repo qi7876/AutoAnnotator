@@ -33,6 +33,7 @@ try:
     # Import sam2 from the proper location
     import sam2.build_sam as build_sam_module
     build_sam2_video_predictor = build_sam_module.build_sam2_video_predictor
+    build_sam2_video_predictor_hf = build_sam_module.build_sam2_video_predictor_hf
     
     # Restore original working directory
     os.chdir(original_cwd)
@@ -40,6 +41,7 @@ try:
 except Exception as e:
     # This might happen during static analysis, but should work at runtime
     build_sam2_video_predictor = None
+    build_sam2_video_predictor_hf = None
     # Restore original working directory if changed
     try:
         os.chdir(original_cwd)
@@ -128,7 +130,13 @@ class ObjectTracker:
     This class provides methods for tracking objects across video frames.
     """
 
-    def __init__(self, backend: str = "local"):
+    def __init__(
+        self,
+        backend: str = "local",
+        model_path: Optional[Path] = None,
+        hf_model_id: Optional[str] = None,
+        auto_download: bool = False
+    ):
         """
         Initialize object tracker.
 
@@ -139,9 +147,13 @@ class ObjectTracker:
         """
         self.backend = backend
         self.samurai_path = Path(__file__).parent / "samurai_deploy"
-        self.model_path = self.samurai_path / "sam2.1_hiera_base_plus.pt"
+        self.model_path = model_path or (self.samurai_path / "sam2.1_hiera_base_plus.pt")
+        self.hf_model_id = hf_model_id
+        self.auto_download = auto_download
         logger.info(f"Initialized ObjectTracker with backend: {backend}")
         logger.info(f"SAMURAI model path: {self.model_path}")
+        if self.hf_model_id:
+            logger.info(f"SAMURAI HF model id: {self.hf_model_id}")
 
     def track_from_first_bbox(
         self,
@@ -200,12 +212,22 @@ class ObjectTracker:
         tracking_results = []
         
         try:
-            # Determine model configuration based on model file name
-            model_cfg = self._determine_model_cfg(str(self.model_path))
-            
-            # Build SAM2 video predictor
             device = "cpu" if not torch.cuda.is_available() else "cuda"
-            predictor = build_sam2_video_predictor(model_cfg, str(self.model_path), device=device)
+
+            if self.model_path.exists():
+                # Determine model configuration based on model file name
+                model_cfg = self._determine_model_cfg(str(self.model_path))
+                predictor = build_sam2_video_predictor(
+                    model_cfg, str(self.model_path), device=device
+                )
+            elif self.auto_download and self.hf_model_id and build_sam2_video_predictor_hf:
+                predictor = build_sam2_video_predictor_hf(
+                    self.hf_model_id, device=device
+                )
+            else:
+                raise FileNotFoundError(
+                    f"Model checkpoint not found: {self.model_path}"
+                )
             
             # Initialize video state
             state = predictor.init_state(str(video_path), offload_video_to_cpu=True)

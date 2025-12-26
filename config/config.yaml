@@ -48,6 +48,9 @@ tasks:
 
   tracking:
     tracker_backend: "local"  # local or api
+    model_path: "data/model/sam2.1_hiera_base_plus.pt"  # supports relative to project root
+    hf_model_id: "facebook/sam2.1-hiera-base-plus"
+    auto_download: true
 
 # Logging
 logging:

@@ -33,6 +33,26 @@ The demo script accepts the following parameters:
 - `--results_path`: Results JSON path (default: test/results_deploy.json)
 - `--save_to_video`: Whether to save video output (default: True)
 
+## AutoAnnotator Tracker 配置
+
+AutoAnnotator 支持自定义权重路径与自动下载（HuggingFace）：
+
+在 `config/config.yaml` 中配置：
+
+```yaml
+tasks:
+  tracking:
+    tracker_backend: "local"
+    model_path: "/abs/path/to/sam2.1_hiera_base_plus.pt"
+    hf_model_id: "facebook/sam2.1-hiera-base-plus"
+    auto_download: false
+```
+
+说明：
+- `model_path` 指向本地权重文件（存在则优先使用）。
+- 当 `model_path` 不存在且 `auto_download=true` 时，会使用 `hf_model_id` 自动下载权重。
+- 未提供 `hf_model_id` 或未开启 `auto_download` 时，将回退到静态 bbox。
+
 ## Example
 
 ```bash
