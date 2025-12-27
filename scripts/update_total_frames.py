@@ -69,6 +69,7 @@ def main() -> int:
 
     updated = 0
     scanned = 0
+    frame_counts: dict[int, int] = {}
 
     for json_path in clips_root.glob("*/*/clips/*.json"):
         scanned += 1
@@ -76,10 +77,24 @@ def main() -> int:
             if update_metadata_json(json_path, dataset_root):
                 updated += 1
                 logger.info("updated: %s", json_path)
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            total_frames = data.get("info", {}).get("total_frames")
+            if isinstance(total_frames, int):
+                frame_counts[total_frames] = frame_counts.get(total_frames, 0) + 1
         except Exception as exc:
             logger.warning("failed: %s (%s)", json_path, exc)
 
     logger.info("scanned=%s updated=%s", scanned, updated)
+    if frame_counts:
+        total_items = sum(frame_counts.values())
+        min_frames = min(frame_counts)
+        max_frames = max(frame_counts)
+        avg_frames = sum(k * v for k, v in frame_counts.items()) / total_items
+        logger.info("total_frames distribution:")
+        logger.info("min=%s max=%s avg=%.2f", min_frames, max_frames, avg_frames)
+        for frames, count in sorted(frame_counts.items()):
+            logger.info("  %s: %s", frames, count)
     return 0
 
 
