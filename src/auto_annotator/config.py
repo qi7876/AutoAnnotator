@@ -25,6 +25,7 @@ class OutputConfig(BaseModel):
     temp_dir: str = "data/output/temp"
     final_dir: str = "data/output/final"
     keep_temp_files: bool = False
+    mot_subdir: str = "mot"
 
 
 class TasksConfig(BaseModel):

@@ -150,6 +150,10 @@ class ObjectTracker:
         self.model_path = model_path or (self.samurai_path / "sam2.1_hiera_base_plus.pt")
         self.hf_model_id = hf_model_id
         self.auto_download = auto_download
+        print(
+            f"[tracker] init backend={backend} model_path={self.model_path} "
+            f"hf_model_id={self.hf_model_id} auto_download={self.auto_download}"
+        )
         logger.info(f"Initialized ObjectTracker with backend: {backend}")
         logger.info(f"SAMURAI model path: {self.model_path}")
         if self.hf_model_id:
@@ -188,13 +192,16 @@ class ObjectTracker:
         """
         logger.info(f"Starting tracking from frame {start_frame} to {end_frame}")
         logger.info(f"Tracking {len(first_bboxes_with_label)} objects")
+        print(f"[tracker] tracking {len(first_bboxes_with_label)} objects from {start_frame} to {end_frame}")
         
         if not first_bboxes_with_label:
             logger.warning("No objects to track")
+            print("[tracker] no objects to track")
             return TrackingResult(video_path, start_frame, end_frame, [])
-        
+
         if build_sam2_video_predictor is None:
             logger.error("SAM2 model not available, falling back to static bboxes")
+            print("[tracker] sam2 predictor unavailable, fallback to static bboxes")
             # Return fallback results 
             fallback_results = []
             for obj_id, bbox_data in enumerate(first_bboxes_with_label):
@@ -215,16 +222,19 @@ class ObjectTracker:
             device = "cpu" if not torch.cuda.is_available() else "cuda"
 
             if self.model_path.exists():
+                print(f"[tracker] using local model: {self.model_path}")
                 # Determine model configuration based on model file name
                 model_cfg = self._determine_model_cfg(str(self.model_path))
                 predictor = build_sam2_video_predictor(
                     model_cfg, str(self.model_path), device=device
                 )
             elif self.auto_download and self.hf_model_id and build_sam2_video_predictor_hf:
+                print(f"[tracker] downloading model: {self.hf_model_id}")
                 predictor = build_sam2_video_predictor_hf(
                     self.hf_model_id, device=device
                 )
             else:
+                print(f"[tracker] model not found and auto_download disabled: {self.model_path}")
                 raise FileNotFoundError(
                     f"Model checkpoint not found: {self.model_path}"
                 )
@@ -310,10 +320,12 @@ class ObjectTracker:
                 torch.cuda.empty_cache()
                 
             logger.info(f"Successfully tracked {len(tracking_results)} objects across {end_frame - start_frame + 1} frames")
+            print(f"[tracker] tracking success objects={len(tracking_results)}")
             return TrackingResult(video_path, start_frame, end_frame, tracking_results)
-            
+
         except Exception as e:
             logger.error(f"Tracking failed: {e}")
+            print(f"[tracker] tracking failed: {e}")
             # Return fallback results 
             fallback_results = []
             for obj_id, bbox_data in enumerate(first_bboxes_with_label):

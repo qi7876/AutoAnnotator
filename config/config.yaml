@@ -7,9 +7,6 @@ gemini:
   video_sampling_fps: 10
   generation_config:
     temperature: 1.0
-    top_p: 0.95
-    top_k: 64
-    max_output_tokens: 65536
     response_mime_type: "application/json"
 
   # Video processing settings
@@ -23,6 +20,7 @@ output:
   temp_dir: "data/output/temp"
   final_dir: "data/output/final"
   keep_temp_files: false
+  mot_subdir: "mot"
 
 # Task configuration
 tasks:

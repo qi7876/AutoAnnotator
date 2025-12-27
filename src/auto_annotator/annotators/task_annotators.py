@@ -40,17 +40,21 @@ class ScoreboardSingleAnnotator(BaseAnnotator):
         """Annotate scoreboard in a single frame."""
         logger.info(f"Annotating {self.task_name} for {segment_metadata.id}")
 
-        # Upload video
-        video_file = self.gemini_client.upload_video(
-            segment_metadata.get_video_path(dataset_root)
-        )
+        is_single_frame = segment_metadata.info.is_single_frame()
+        media_path = segment_metadata.get_video_path(dataset_root)
+        media_file = None
+        if not is_single_frame:
+            media_file = self.gemini_client.upload_video(media_path)
 
         try:
             # Load prompt
             prompt = self.load_prompt(segment_metadata)
 
             # Get annotation from AI
-            result = self.gemini_client.annotate_video(video_file, prompt)
+            if is_single_frame:
+                result = self.gemini_client.annotate_image(media_path, prompt)
+            else:
+                result = self.gemini_client.annotate_video(media_file, prompt)
 
             # Extract bounding box description
             bbox_description = result.get("bounding_box", "")
@@ -78,7 +82,8 @@ class ScoreboardSingleAnnotator(BaseAnnotator):
 
         finally:
             # Cleanup uploaded file
-            self.gemini_client.cleanup_file(video_file)
+            if media_file is not None:
+                self.gemini_client.cleanup_file(media_file)
 
 
 class ScoreboardMultipleAnnotator(BaseAnnotator):
@@ -98,17 +103,22 @@ class ScoreboardMultipleAnnotator(BaseAnnotator):
         """Annotate scoreboard changes across multiple frames."""
         logger.info(f"Annotating {self.task_name} for {segment_metadata.id}")
 
-        # Upload video
-        video_file = self.gemini_client.upload_video(
-            segment_metadata.get_video_path(dataset_root)
-        )
+        media_path = segment_metadata.get_video_path(dataset_root)
+        is_single_frame = segment_metadata.info.is_single_frame()
+        is_image_file = media_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tiff"}
+        media_file = None
+        if not (is_single_frame or is_image_file):
+            media_file = self.gemini_client.upload_video(media_path)
 
         try:
             # Load prompt
             prompt = self.load_prompt(segment_metadata)
 
             # Get annotation from AI
-            result = self.gemini_client.annotate_video(video_file, prompt)
+            if is_single_frame or is_image_file:
+                result = self.gemini_client.annotate_image(media_path, prompt)
+            else:
+                result = self.gemini_client.annotate_video(media_file, prompt)
 
             # Add metadata
             result = self.add_metadata_fields(result)
@@ -117,7 +127,8 @@ class ScoreboardMultipleAnnotator(BaseAnnotator):
             return result
 
         finally:
-            self.gemini_client.cleanup_file(video_file)
+            if media_file is not None:
+                self.gemini_client.cleanup_file(media_file)
 
 
 class ObjectsSpatialRelationshipsAnnotator(BaseAnnotator):
@@ -146,17 +157,22 @@ class ObjectsSpatialRelationshipsAnnotator(BaseAnnotator):
         """Annotate spatial relationships between objects."""
         logger.info(f"Annotating {self.task_name} for {segment_metadata.id}")
 
-        # Upload video
-        video_file = self.gemini_client.upload_video(
-            segment_metadata.get_video_path(dataset_root)
-        )
+        media_path = segment_metadata.get_video_path(dataset_root)
+        is_single_frame = segment_metadata.info.is_single_frame()
+        is_image_file = media_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tiff"}
+        media_file = None
+        if not (is_single_frame or is_image_file):
+            media_file = self.gemini_client.upload_video(media_path)
 
         try:
             # Load prompt
             prompt = self.load_prompt(segment_metadata)
 
             # Get annotation from AI
-            result = self.gemini_client.annotate_video(video_file, prompt)
+            if is_single_frame or is_image_file:
+                result = self.gemini_client.annotate_image(media_path, prompt)
+            else:
+                result = self.gemini_client.annotate_video(media_file, prompt)
 
             # Process bounding boxes
             bbox_info = result.get("bounding_box", [])
@@ -164,10 +180,13 @@ class ObjectsSpatialRelationshipsAnnotator(BaseAnnotator):
             if isinstance(bbox_info, list) and bbox_info:
                 # Extract frame
                 timestamp_frame = result.get("timestamp_frame", 0)
-                frame_path = VideoUtils.extract_frame(
-                    segment_metadata.get_video_path(dataset_root),
-                    timestamp_frame
-                )
+                if is_single_frame or is_image_file:
+                    frame_path = media_path
+                else:
+                    frame_path = VideoUtils.extract_frame(
+                        segment_metadata.get_video_path(dataset_root),
+                        timestamp_frame
+                    )
 
                 # TODO: Use bbox_annotator to generate actual bounding boxes
                 # descriptions = [obj["description"] for obj in bbox_info]
@@ -190,7 +209,8 @@ class ObjectsSpatialRelationshipsAnnotator(BaseAnnotator):
             return result
 
         finally:
-            self.gemini_client.cleanup_file(video_file)
+            if media_file is not None:
+                self.gemini_client.cleanup_file(media_file)
 
 
 class SpatialTemporalGroundingAnnotator(BaseAnnotator):

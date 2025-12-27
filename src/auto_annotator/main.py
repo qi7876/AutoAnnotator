@@ -22,12 +22,14 @@ def setup_logging():
     log_file = Path(config.project_root) / config.logging.file
     log_file.parent.mkdir(parents=True, exist_ok=True)
 
+    print(f"Logging to: {log_file}")
+
     # Configure logging
     logging.basicConfig(
         level=getattr(logging, config.logging.level),
         format=config.logging.format,
         handlers=[
-            logging.FileHandler(log_file),
+            logging.FileHandler(log_file, mode="w"),
             logging.StreamHandler(sys.stdout)
         ]
     )
@@ -171,10 +173,10 @@ def _maybe_write_tracking_mot(
     config = get_config()
     output_root = Path(config.project_root) / config.output.temp_dir
     mot_dir = (
-        output_root.parent
+        output_root
         / segment_metadata.origin.sport
         / segment_metadata.origin.event
-        / "mot"
+        / config.output.mot_subdir
     )
     mot_dir.mkdir(parents=True, exist_ok=True)
 

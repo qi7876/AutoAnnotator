@@ -1,11 +1,14 @@
 from pathlib import Path
 from auto_annotator import InputAdapter
-from auto_annotator.main import process_segment
+import logging
+from auto_annotator.main import process_segment, setup_logging
 from auto_annotator import GeminiClient, PromptLoader
 from auto_annotator.annotators.bbox_annotator import BBoxAnnotator
 from auto_annotator.annotators.tracker import ObjectTracker
 from auto_annotator.config import get_config
 
+setup_logging()
+logging.disable(logging.CRITICAL)
 config = get_config()
 dataset_root = Path(config.dataset_root)
 

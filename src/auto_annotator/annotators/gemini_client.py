@@ -1,8 +1,8 @@
 """Gemini API client for video annotation."""
 
 import json
-import os
 import logging
+import mimetypes
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -28,8 +28,11 @@ class GeminiClient:
 
         self.generation_config = self.config.gemini.generation_config
 
-        logger.info(f"Initialized Gemini client with model: {self.model_name}")
-        logger.info(f"Initialized Gemini client with grounding model: {self.grounding_model_name}")
+        logger.info(
+            "Initialized Gemini client with model=%s grounding_model=%s",
+            self.model_name,
+            self.grounding_model_name
+        )
 
     def _build_generation_config(
         self,
@@ -95,46 +98,6 @@ class GeminiClient:
             logger.error(f"Failed to upload video: {e}")
             raise
 
-    def upload_image(self, image_path: Path) -> Any:
-        """
-        Upload an image file to Gemini File API.
-
-        Args:
-            image_path: Path to the image file
-
-        Returns:
-            Uploaded file object
-        """
-        if not image_path.exists():
-            raise FileNotFoundError(f"Image file not found: {image_path}")
-
-        logger.info(f"Uploading image: {image_path}")
-
-        try:
-            MIME_MAP = {
-                ".jpg": "image/jpeg",
-                ".jpeg": "image/jpeg",
-                ".png": "image/png",
-                ".webp": "image/webp",
-                ".gif": "image/gif",
-                ".bmp": "image/bmp",
-                ".tiff": "image/tiff",
-            }
-
-            ext = os.path.splitext(image_path)[1].lower()
-
-            mime_type = MIME_MAP.get(ext, "application/octet-stream")  # 默认值
-            image_file = self.client.files.upload(
-                file=image_path,
-                mime_type=mime_type
-            )
-            logger.info(f"Uploaded image as: {image_file.uri}")
-            return image_file
-
-        except Exception as e:
-            logger.error(f"Failed to upload image: {e}")
-            raise
-
     def annotate_video(
         self,
         video_file: Any,
@@ -158,7 +121,8 @@ class GeminiClient:
         if timeout is None:
             timeout = self.config.gemini.video["processing_timeout_sec"]
 
-        logger.info("Generating annotation...")
+        request_config = self._build_generation_config()
+        logger.info("Generating annotation with model=%s", self.model_name)
 
         try:
             video_file_uri = video_file.uri
@@ -174,14 +138,10 @@ class GeminiClient:
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=[video_part, prompt],
-                config=self._build_generation_config()
+                config=request_config
             )
 
-            # Parse JSON response
             result = self._parse_json_response(response.text)
-            
-            # Save raw response for debugging
-            self.last_annotation_raw = response.text
 
             logger.info("Annotation generated successfully")
             return result
@@ -192,33 +152,39 @@ class GeminiClient:
 
     def annotate_image(
         self,
-        image_file: Any,
-        prompt: str
+        image: Union[Path, bytes],
+        prompt: str,
+        mime_type: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Annotate an image using Gemini API.
 
         Args:
-            image_file: Uploaded image file object
+            image: Image file path or raw bytes
             prompt: Annotation prompt
+            mime_type: Optional MIME type (required when passing bytes)
 
         Returns:
             Annotation result as dictionary
         """
-        logger.info("Generating image annotation...")
+        request_config = self._build_generation_config()
+        logger.info("Generating image annotation with model=%s", self.model_name)
 
         try:
-            mime_type = getattr(image_file, "mime_type", None)
-            image_part = types.Part(
-                file_data=types.FileData(
-                    file_uri=image_file.uri,
-                    mime_type=mime_type or "image/jpeg"
-                )
+            if isinstance(image, Path):
+                image_bytes = image.read_bytes()
+                if mime_type is None:
+                    mime_type = mimetypes.guess_type(str(image))[0]
+            else:
+                image_bytes = image
+            image_part = types.Part.from_bytes(
+                data=image_bytes,
+                mime_type=mime_type or "image/jpeg"
             )
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=[image_part, prompt],
-                config=self._build_generation_config(),
+                config=request_config,
             )
 
             result = self._parse_json_response(response.text)
@@ -237,22 +203,6 @@ class GeminiClient:
         description: str,
         task_type: str
     ) -> List[float]:
-        """
-        Generate bounding box coordinates using grounding model.
-
-            Args:
-                image_bytes: Bytes of the image
-                mime_type: MIME type of the image
-                description: Natural language description of the object
-                task_type: Type of task (single_box or multiple_boxes)
-
-        Returns:
-            Bounding box coordinates [xtl, ytl, xbr, ybr] normalized to [0, 1000]
-
-        Note:
-            This is a placeholder interface. The actual implementation
-            will be completed by your colleague working on bounding box annotation.
-        """
         """
         Generate bounding box coordinates using grounding model.
 
@@ -296,11 +246,7 @@ class GeminiClient:
                 config=types.GenerateContentConfig(temperature=0, thinking_config=types.ThinkingConfig(thinking_budget=0))
             )
 
-            # parse response
-            try:
-                data = self._parse_json_response(image_response.text)
-            except json.JSONDecodeError as e:
-                raise RuntimeError(f"Failed to parse model response: {e}\nResponse text: {image_response.text}")
+            data = self._parse_json_response(image_response.text)
 
             # extract bounding box
             if task_type == "single_box":
@@ -318,7 +264,7 @@ class GeminiClient:
             logger.error(f"Failed to generate bounding box: {e}")
             raise
 
-    def _parse_json_response(self, response_text: str) -> Dict[str, Any]:
+    def _parse_json_response(self, response_text: str) -> Any:
         """
         Parse JSON response from Gemini.
 
