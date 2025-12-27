@@ -20,7 +20,6 @@ output:
   temp_dir: "data/output/temp"
   final_dir: "data/output/final"
   keep_temp_files: false
-  mot_subdir: "mot"
 
 # Task configuration
 tasks:

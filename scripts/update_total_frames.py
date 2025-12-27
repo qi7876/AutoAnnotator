@@ -2,6 +2,7 @@
 """Update total_frames in clip metadata JSONs using ffprobe."""
 
 import json
+import logging
 import subprocess
 from pathlib import Path
 
@@ -74,13 +75,15 @@ def main() -> int:
         try:
             if update_metadata_json(json_path, dataset_root):
                 updated += 1
-                print(f"updated: {json_path}")
+                logger.info("updated: %s", json_path)
         except Exception as exc:
-            print(f"failed: {json_path} ({exc})")
+            logger.warning("failed: %s (%s)", json_path, exc)
 
-    print(f"scanned={scanned} updated={updated}")
+    logger.info("scanned=%s updated=%s", scanned, updated)
     return 0
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     raise SystemExit(main())
+logger = logging.getLogger(__name__)

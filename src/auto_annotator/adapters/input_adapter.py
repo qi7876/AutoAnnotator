@@ -1,10 +1,13 @@
 """Input adapter for handling clip metadata from previous steps."""
 
 import json
+import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 
 class OriginInfo(BaseModel):
@@ -227,7 +230,7 @@ class InputAdapter:
 
                 metadata_list.append(metadata)
             except Exception as e:
-                print(f"Warning: Failed to load {json_file}: {e}")
+                logger.warning(f"Failed to load {json_file}: {e}")
                 continue
 
         return metadata_list

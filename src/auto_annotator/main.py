@@ -1,6 +1,5 @@
 """Main entry point for AutoAnnotator."""
 
-import argparse
 import logging
 import sys
 from pathlib import Path
@@ -10,7 +9,7 @@ from .adapters import InputAdapter, ClipMetadata
 from .annotators import GeminiClient, TaskAnnotatorFactory
 from .annotators.bbox_annotator import BBoxAnnotator
 from .annotators.tracker import ObjectTracker
-from .config import get_config, get_config_manager
+from .config import get_config
 from .utils import JSONUtils, PromptLoader
 
 
@@ -128,7 +127,11 @@ def process_segment(
                 logger.warning(f"Invalid annotation for {task_name}: {error}")
                 continue
 
-            annotation = _maybe_write_tracking_mot(annotation, segment_metadata)
+            annotation = _maybe_write_tracking_mot(
+                annotation,
+                segment_metadata,
+                output_dir
+            )
             annotations.append(annotation)
             logger.info(f"Successfully annotated {task_name}")
 
@@ -159,7 +162,8 @@ def process_segment(
 
 def _maybe_write_tracking_mot(
     annotation: Dict[str, Any],
-    segment_metadata: ClipMetadata
+    segment_metadata: ClipMetadata,
+    output_dir: Path
 ) -> Dict[str, Any]:
     """Convert tracking_bboxes into MOT file reference when applicable."""
     tracking = annotation.get("tracking_bboxes")
@@ -171,13 +175,12 @@ def _maybe_write_tracking_mot(
         return annotation
 
     config = get_config()
-    output_root = Path(config.project_root) / config.output.temp_dir
-    mot_dir = (
-        output_root
-        / segment_metadata.origin.sport
-        / segment_metadata.origin.event
-        / config.output.mot_subdir
-    )
+    if output_dir.name == "frames":
+        return annotation
+    if output_dir.name == "clips":
+        mot_dir = output_dir / "mot"
+    else:
+        mot_dir = output_dir / "mot"
     mot_dir.mkdir(parents=True, exist_ok=True)
 
     mot_path = mot_dir / f"{segment_metadata.id}.txt"
@@ -368,81 +371,3 @@ def process_segments_batch(
     logger.info(f"Failed: {failed}")
     logger.info(f"Total: {successful + failed}")
     logger.info("="*60)
-
-
-def main():
-    """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="AutoAnnotator - AI-powered video annotation system"
-    )
-
-    parser.add_argument(
-        "segment_path",
-        type=str,
-        help="Path to segment metadata JSON file or directory containing multiple files"
-    )
-
-    parser.add_argument(
-        "-o", "--output",
-        type=str,
-        help="Output directory for annotation results (default: from config)",
-        default=None
-    )
-
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Enable verbose logging"
-    )
-
-    args = parser.parse_args()
-
-    # Setup logging
-    setup_logging()
-
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
-
-    logger = logging.getLogger(__name__)
-
-    try:
-        # Get output directory
-        config = get_config()
-        if args.output:
-            output_dir = Path(args.output)
-        else:
-            output_dir = Path(config.project_root) / config.output.temp_dir
-
-        # Process segments
-        segment_path = Path(args.segment_path)
-
-        if segment_path.is_file():
-            # Single segment file
-            segment_paths = [segment_path]
-        elif segment_path.is_dir():
-            # Directory containing multiple segment files
-            segment_paths = list(segment_path.glob("*.json"))
-            logger.info(f"Found {len(segment_paths)} segment files in {segment_path}")
-        else:
-            raise FileNotFoundError(f"Path not found: {segment_path}")
-
-        if not segment_paths:
-            logger.error("No segment files found")
-            return 1
-
-        # Process batch
-        process_segments_batch(
-            segment_paths,
-            output_dir,
-            prune_orphans=segment_path.is_dir()
-        )
-
-        return 0
-
-    except Exception as e:
-        logger.error(f"Fatal error: {e}", exc_info=True)
-        return 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())

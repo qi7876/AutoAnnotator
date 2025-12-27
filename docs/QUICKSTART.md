@@ -203,19 +203,8 @@ uv run python test_annotation.py
 如果你有多个片段需要标注：
 
 ```bash
-# 处理整个目录
-uv run python -m auto_annotator.main \
-    data/Dataset/Archery/Men\'s_Individual/singleframes_dir/
-
-# 指定输出目录
-uv run python -m auto_annotator.main \
-    data/Dataset/Archery/Men\'s_Individual/segment_dir/ \
-    -o data/output/archery_annotations/
-
-# 启用详细日志
-uv run python -m auto_annotator.main \
-    data/Dataset/Archery/Men\'s_Individual/segment_dir/ \
-    -v
+# 批量处理数据集
+uv run python scripts/batch_processing.py
 ```
 
 ## 📤 理解输出

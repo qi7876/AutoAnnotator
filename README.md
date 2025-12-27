@@ -148,26 +148,11 @@ data/Dataset/
 
 ## 💻 使用方法
 
-### 命令行界面
+### 批量处理脚本
 
-处理单个片段：
+使用批处理脚本遍历数据集：
 ```bash
-uv run python -m auto_annotator.main path/to/segment_metadata.json
-```
-
-处理目录中的多个片段：
-```bash
-uv run python -m auto_annotator.main path/to/segments_dir/
-```
-
-指定自定义输出目录：
-```bash
-uv run python -m auto_annotator.main path/to/segments/ -o data/output/custom/
-```
-
-启用详细日志：
-```bash
-uv run python -m auto_annotator.main path/to/segments/ -v
+uv run python scripts/batch_processing.py
 ```
 
 ### 数据集标注监测脚本

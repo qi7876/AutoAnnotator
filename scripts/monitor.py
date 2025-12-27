@@ -1,5 +1,6 @@
 import argparse
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Dict, Iterable, List
@@ -25,6 +26,8 @@ TASKS = [
     "AI_Coach",
     "Commentary",
 ]
+
+logger = logging.getLogger(__name__)
 
 def get_tenant_access_token(app_id: str, app_secret: str) -> str:
     headers = {
@@ -128,6 +131,7 @@ def upload_stats_to_feishu(
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     load_dotenv("config/.env")
 
     parser = argparse.ArgumentParser(description="Dataset annotation monitor")
@@ -164,7 +168,7 @@ if __name__ == "__main__":
     metadata_files = list(iter_video_metadata_files(dataset_root))
     counts = collect_task_counts(metadata_files)
     summary = summarize_counts(counts, total_videos=len(metadata_files))
-    print(summary)
+    logger.info(summary)
 
     if args.upload:
         if not APP_ID or not APP_SECRET:
@@ -180,4 +184,4 @@ if __name__ == "__main__":
             sheet_id=args.sheet_id,
             source=args.source,
         )
-        print("已上传统计结果到飞书。")
+        logger.info("已上传统计结果到飞书。")

@@ -121,7 +121,13 @@ class GeminiClient:
         if timeout is None:
             timeout = self.config.gemini.video["processing_timeout_sec"]
 
-        request_config = self._build_generation_config()
+        request_config = self._build_generation_config(
+            overrides={
+                "http_options": types.HttpOptions(
+                    timeout=int(timeout * 1000)
+                )
+            }
+        )
         logger.info("Generating annotation with model=%s", self.model_name)
 
         try:

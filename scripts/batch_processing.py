@@ -8,7 +8,7 @@ from auto_annotator.annotators.tracker import ObjectTracker
 from auto_annotator.config import get_config
 
 setup_logging()
-logging.disable(logging.CRITICAL)
+logger = logging.getLogger(__name__)
 config = get_config()
 dataset_root = Path(config.dataset_root)
 
@@ -59,14 +59,14 @@ for sport_dir in dataset_root.iterdir():
     if not sport_dir.is_dir():
         continue
 
-    print(f"\n处理运动项目: {sport_dir.name}")
+    logger.info("处理运动项目: %s", sport_dir.name)
 
     # 遍历所有比赛事件
     for event_dir in sport_dir.iterdir():
         if not event_dir.is_dir():
             continue
 
-        print(f"  处理事件: {event_dir.name}")
+        logger.info("处理事件: %s", event_dir.name)
 
         metadata_files = iter_metadata_files(event_dir)
         metadata_list = []
@@ -74,9 +74,9 @@ for sport_dir in dataset_root.iterdir():
             try:
                 metadata_list.append(InputAdapter.load_from_json(json_path))
             except Exception as e:
-                print(f"    ✗ 读取失败: {json_path.name}: {e}")
+                logger.warning("读取失败: %s: %s", json_path.name, e)
 
-        print(f"    找到 {len(metadata_list)} 个片段/单帧")
+        logger.info("找到 %s 个片段/单帧", len(metadata_list))
 
         # 处理每个片段
         for metadata in metadata_list:
@@ -90,8 +90,8 @@ for sport_dir in dataset_root.iterdir():
                     output_dir=get_output_dir(metadata),
                     dataset_root=config.dataset_root
                 )
-                print(f"      ✓ {metadata.id} -> {output_path}")
+                logger.info("✓ %s -> %s", metadata.id, output_path)
             except Exception as e:
-                print(f"      ✗ {metadata.id}: {e}")
+                logger.error("✗ %s: %s", metadata.id, e)
 
-print("\n批量处理完成！")
+logger.info("批量处理完成！")

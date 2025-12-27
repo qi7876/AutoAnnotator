@@ -41,7 +41,7 @@ class BaseAnnotator(ABC):
         Returns:
             Task name (e.g., "ScoreboardSingle")
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def get_task_l1(self) -> str:
@@ -51,7 +51,7 @@ class BaseAnnotator(ABC):
         Returns:
             Task L1 (e.g., "Understanding" or "Perception")
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def annotate(
@@ -69,7 +69,7 @@ class BaseAnnotator(ABC):
         Returns:
             Annotation result dictionary
         """
-        pass
+        raise NotImplementedError
 
     def prepare_prompt_variables(
         self,
