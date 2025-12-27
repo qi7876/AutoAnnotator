@@ -2,12 +2,11 @@
 """Update total_frames in clip metadata JSONs using ffprobe."""
 
 import json
-import logging
 import subprocess
 from pathlib import Path
 
 
-def ffprobe_count_frames(video_path: Path) -> int:
+def ffprobe_count_frames(video_path: Path, timeout_sec: int = 30) -> int:
     """Return nb_read_frames from ffprobe."""
     cmd = [
         "ffprobe",
@@ -20,7 +19,16 @@ def ffprobe_count_frames(video_path: Path) -> int:
         "default=nw=1",
         str(video_path),
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=timeout_sec
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"ffprobe timeout after {timeout_sec}s: {video_path}") from exc
     for line in result.stdout.splitlines():
         if line.startswith("nb_read_frames="):
             value = line.split("=", 1)[1].strip()
@@ -74,31 +82,30 @@ def main() -> int:
     for json_path in clips_root.glob("*/*/clips/*.json"):
         scanned += 1
         try:
+            print(f"scanning: {json_path}")
             if update_metadata_json(json_path, dataset_root):
                 updated += 1
-                logger.info("updated: %s", json_path)
+                print(f"updated: {json_path}")
             with open(json_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             total_frames = data.get("info", {}).get("total_frames")
             if isinstance(total_frames, int):
                 frame_counts[total_frames] = frame_counts.get(total_frames, 0) + 1
         except Exception as exc:
-            logger.warning("failed: %s (%s)", json_path, exc)
+            print(f"failed: {json_path} ({exc})")
 
-    logger.info("scanned=%s updated=%s", scanned, updated)
+    print(f"scanned={scanned} updated={updated}")
     if frame_counts:
         total_items = sum(frame_counts.values())
         min_frames = min(frame_counts)
         max_frames = max(frame_counts)
         avg_frames = sum(k * v for k, v in frame_counts.items()) / total_items
-        logger.info("total_frames distribution:")
-        logger.info("min=%s max=%s avg=%.2f", min_frames, max_frames, avg_frames)
+        print("total_frames distribution:")
+        print(f"min={min_frames} max={max_frames} avg={avg_frames:.2f}")
         for frames, count in sorted(frame_counts.items()):
-            logger.info("  %s: %s", frames, count)
+            print(f"  {frames}: {count}")
     return 0
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
     raise SystemExit(main())
-logger = logging.getLogger(__name__)
