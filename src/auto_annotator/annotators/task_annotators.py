@@ -188,19 +188,21 @@ class ObjectsSpatialRelationshipsAnnotator(BaseAnnotator):
                         timestamp_frame
                     )
 
-                # TODO: Use bbox_annotator to generate actual bounding boxes
-                # descriptions = [obj["description"] for obj in bbox_info]
-                # bboxes = self.bbox_annotator.annotate_multiple_objects(
-                #     frame_path, descriptions
-                # )
-                #
-                # for i, bbox in enumerate(bboxes):
-                #     bbox_info[i]["box"] = bbox.to_list()
+                descriptions = []
+                labels = []
+                for obj in bbox_info:
+                    if isinstance(obj, dict):
+                        labels.append(obj.get("label", ""))
+                        descriptions.append(obj.get("description", ""))
 
-                logger.warning(
-                    "Bounding box annotation not implemented. "
-                    "Keeping natural language descriptions."
-                )
+                if any(desc for desc in descriptions):
+                    bboxes = self.bbox_annotator.annotate_multiple_objects(
+                        frame_path, descriptions
+                    )
+                    result["bounding_box"] = [
+                        {"label": labels[i], "box": bbox.to_list()}
+                        for i, bbox in enumerate(bboxes)
+                    ]
 
             # Add metadata
             result = self.add_metadata_fields(result)
@@ -283,6 +285,8 @@ class SpatialTemporalGroundingAnnotator(BaseAnnotator):
 
                 result["first_bounding_box"] = first_bbox.to_list()
                 result["tracking_bboxes"] = tracking_result.to_dict()
+
+            result.pop("first_frame_description", None)
 
             # Add metadata
             result = self.add_metadata_fields(result)
@@ -444,31 +448,14 @@ class ObjectTrackingAnnotator(BaseAnnotator):
                     first_frame
                 )
 
-                # TODO: Use bbox_annotator and tracker
-                first_bboxes_with_label = []
-                multi_object = len(first_frame_desc)>1
-                if(len(first_frame_desc)==0):
-                    raise ValueError("No description for first frame bounding box.")
-                # single object
-                elif(not multi_object):
-                    first_bboxes = self.bbox_annotator.annotate_single_object(
-                        frame_path, first_frame_desc[0]
-                    )
-                    bbox_dict = {}
-                    bbox_dict['bbox'] = first_bboxes.to_list()
-                    bbox_dict['label'] = first_frame_desc[0]
-                    first_bboxes_with_label.append(bbox_dict)
-                # multiple objects
-                elif(multi_object):
-                    first_bboxes = self.bbox_annotator.annotate_multiple_objects(
-                        frame_path, first_frame_desc
-                    )
-                    for i, bbox in enumerate(first_bboxes):
-                        bbox_dict = {}
-                        bbox_dict['bbox'] = bbox.to_list()
-                        bbox_dict['label'] = first_frame_desc[i]
-                        first_bboxes_with_label.append(bbox_dict)
-                
+                first_bbox = self.bbox_annotator.annotate_single_object(
+                    frame_path, first_frame_desc
+                )
+                first_bboxes_with_label = [{
+                    "bbox": first_bbox.to_list(),
+                    "label": first_frame_desc
+                }]
+
                 tracking_result = self.tracker.track_from_first_bbox(
                     segment_metadata.get_video_path(),
                     first_bboxes_with_label,
@@ -476,8 +463,10 @@ class ObjectTrackingAnnotator(BaseAnnotator):
                     q_window[1]
                 )
                 # Handle tracking result (now returns TrackingResult object)
-                result["first_bounding_box"] = first_bboxes_with_label if multi_object else first_bboxes.to_list()
+                result["first_bounding_box"] = first_bbox.to_list()
                 result["tracking_bboxes"] = tracking_result.to_dict()
+
+            result.pop("first_frame_description", None)
 
             # Add metadata
             result = self.add_metadata_fields(result)

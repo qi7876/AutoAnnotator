@@ -32,4 +32,4 @@ The segment has {total_frames} frames in total.
 
 Please note the response format. The time periods in A_window_frame are segmented, and the number of segments should align with the number of answers in the answer array.
 
-Please analyze the video content, combine it with the JSON template format, and return your annotation results. Note that the content of your annotated JSON should be in English.
+Please analyze the video content, combine it with the JSON template format, and return your annotation results.

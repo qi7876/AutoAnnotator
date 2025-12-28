@@ -36,4 +36,4 @@ Instructions:
 
 The segment's starting frame in the original video is frame {num_first_frame}.
 
-Please analyze the frame content and return your annotation in JSON format. Your annotation content should be in English. Choose 2-3 prominent objects in the frame for spatial relationship annotation.
+Please analyze the frame content and return your annotation in JSON format. Choose 2 prominent objects in the frame for spatial relationship annotation.

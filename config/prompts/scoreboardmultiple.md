@@ -26,4 +26,4 @@ Instructions:
 The segment's starting frame in the original video is frame {num_first_frame}.
 The segment has {total_frames} frames in total.
 
-Please analyze the video content and return your annotation in JSON format. Your annotation content should be in English.
+Please analyze the video content and return your annotation in JSON format.

@@ -67,12 +67,12 @@
 
 ### 7) Object_Tracking（目标跟踪）
 
-- 目标：对一个或多个对象进行时间窗内跟踪。
+- 目标：对单个对象进行时间窗内跟踪。
 - 输出字段：
-  - Q_window_frame, query, first_frame_description(描述列表)
+  - Q_window_frame, query, first_frame_description(描述文本)
 - 后处理：
   - 抽取 Q_window_frame 首帧
-  - 用 BBoxAnnotator 生成首帧 bbox（单/多目标）
+  - 用 BBoxAnnotator 生成首帧 bbox
   - 用 ObjectTracker 生成 tracking_bboxes
 
 ## 参考实现
