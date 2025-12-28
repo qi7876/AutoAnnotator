@@ -62,9 +62,10 @@ class ScoreboardSingleAnnotator(BaseAnnotator):
             if isinstance(bbox_description, str):
                 # Extract frame from video
                 timestamp_frame = result.get("timestamp_frame", 0)
+                clip_frame = int(timestamp_frame) - segment_metadata.info.original_starting_frame
                 frame_path = VideoUtils.extract_frame(
                     segment_metadata.get_video_path(dataset_root),
-                    timestamp_frame
+                    clip_frame
                 )
 
                 # Use bbox_annotator to generate actual bounding box
@@ -180,12 +181,13 @@ class ObjectsSpatialRelationshipsAnnotator(BaseAnnotator):
             if isinstance(bbox_info, list) and bbox_info:
                 # Extract frame
                 timestamp_frame = result.get("timestamp_frame", 0)
+                clip_frame = int(timestamp_frame) - segment_metadata.info.original_starting_frame
                 if is_single_frame or is_image_file:
                     frame_path = media_path
                 else:
                     frame_path = VideoUtils.extract_frame(
                         segment_metadata.get_video_path(dataset_root),
-                        timestamp_frame
+                        clip_frame
                     )
 
                 descriptions = []
@@ -261,10 +263,11 @@ class SpatialTemporalGroundingAnnotator(BaseAnnotator):
 
             if first_frame_desc and len(a_window) == 2:
                 # Extract first frame of answer window
-                first_frame = a_window[0]
+                clip_start = int(a_window[0]) - segment_metadata.info.original_starting_frame
+                clip_end = int(a_window[1]) - segment_metadata.info.original_starting_frame
                 frame_path = VideoUtils.extract_frame(
                     segment_metadata.get_video_path(dataset_root),
-                    first_frame
+                    clip_start
                 )
 
                 first_bbox = self.bbox_annotator.annotate_single_object(
@@ -279,8 +282,8 @@ class SpatialTemporalGroundingAnnotator(BaseAnnotator):
                 tracking_result = self.tracker.track_from_first_bbox(
                     segment_metadata.get_video_path(dataset_root),
                     first_bboxes_with_label,
-                    a_window[0],
-                    a_window[1]
+                    clip_start,
+                    clip_end
                 )
 
                 result["first_bounding_box"] = first_bbox.to_list()
@@ -342,9 +345,11 @@ class ContinuousActionsCaptionAnnotator(BaseAnnotator):
             q_window = result.get("Q_window_frame", [])
 
             if first_frame_desc and len(q_window) == 2:
+                clip_start = int(q_window[0]) - segment_metadata.info.original_starting_frame
+                clip_end = int(q_window[1]) - segment_metadata.info.original_starting_frame
                 frame_path = VideoUtils.extract_frame(
                     segment_metadata.get_video_path(dataset_root),
-                    q_window[0]
+                    clip_start
                 )
                 first_bbox = self.bbox_annotator.annotate_single_object(
                     frame_path, first_frame_desc
@@ -356,8 +361,8 @@ class ContinuousActionsCaptionAnnotator(BaseAnnotator):
                 tracking_result = self.tracker.track_from_first_bbox(
                     segment_metadata.get_video_path(dataset_root),
                     first_bboxes_with_label,
-                    q_window[0],
-                    q_window[1]
+                    clip_start,
+                    clip_end
                 )
                 result["first_bounding_box"] = first_bbox.to_list()
                 result["tracking_bboxes"] = tracking_result.to_dict()
@@ -479,10 +484,11 @@ class ObjectTrackingAnnotator(BaseAnnotator):
 
             if first_frame_desc and len(q_window) == 2:
                 # Extract first frame
-                first_frame = q_window[0]
+                clip_start = int(q_window[0]) - segment_metadata.info.original_starting_frame
+                clip_end = int(q_window[1]) - segment_metadata.info.original_starting_frame
                 frame_path = VideoUtils.extract_frame(
                     segment_metadata.get_video_path(dataset_root),
-                    first_frame
+                    clip_start
                 )
 
                 first_bbox = self.bbox_annotator.annotate_single_object(
@@ -496,8 +502,8 @@ class ObjectTrackingAnnotator(BaseAnnotator):
                 tracking_result = self.tracker.track_from_first_bbox(
                     segment_metadata.get_video_path(),
                     first_bboxes_with_label,
-                    q_window[0],
-                    q_window[1]
+                    clip_start,
+                    clip_end
                 )
                 # Handle tracking result (now returns TrackingResult object)
                 result["first_bounding_box"] = first_bbox.to_list()

@@ -27,7 +27,7 @@ Please annotate according to the following JSON template:
 
 Instructions:
 - `annotation_id`, `task_L1`, `task_L2`: I will maintain these fields, you don't need to annotate them
-- `timestamp_frame`: The frame number where the spatial relationship is observed (will be provided)
+- `timestamp_frame`: The frame number in the original video where the spatial relationship is observed (will be provided)
 - `question`: Create a question about the spatial relationship between two objects (e.g., left/right, front/back, above/below)
 - `answer`: Provide a clear answer describing the spatial relationship
 - `bounding_box`: For each object, provide:

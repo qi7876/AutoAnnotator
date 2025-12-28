@@ -14,6 +14,8 @@
 
 ## 任务流程
 
+说明：所有任务中涉及的帧号均为原视频帧号；在 clip 内抽帧或跟踪时，需要先减去 `original_starting_frame` 换算为 clip 内帧号。
+
 ### 1) ScoreboardSingle（单帧记分板理解）
 
 - 目标：在视频中找到完整清晰的记分板帧，并生成问答。
@@ -55,6 +57,7 @@
 - 输出字段：
   - Q_window_frame, A_window_frame(多个片段), question, first_frame_description, answer(动作列表)
 - 后处理：
+  - Q_window_frame 使用原视频帧号，抽帧前换算为 clip 内帧号
   - 抽取 Q_window_frame 首帧
   - 用 BBoxAnnotator 生成首帧 bbox
   - 用 ObjectTracker 生成 tracking_bboxes

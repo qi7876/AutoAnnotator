@@ -21,9 +21,9 @@ Please annotate according to the following JSON template:
 
 Instructions:
 - `annotation_id`, `task_L1`, `task_L2`: I will maintain these fields, you don't need to annotate them
-- `Q_window_frame`: The question frame window, calculated in frames, modify according to video content
+- `Q_window_frame`: The question frame window, in original video frame numbers. Modify according to video content.
 - `question`: Create a question asking for continuous event description
-- `A_window_frame`: Answer frame windows, calculated in frames, modify according to video content. The time segments should be continuous and non-overlapping.
+- `A_window_frame`: Answer frame windows, in original video frame numbers. The time segments should be continuous and non-overlapping.
 - `answer`: The answers should align with the number of answer frame windows. Each answer describes a high-level event (not individual actions, but meaningful events like "successful breakthrough", "goal scored", "defensive steal")
 
 The segment's starting frame in the original video is frame {num_first_frame}.

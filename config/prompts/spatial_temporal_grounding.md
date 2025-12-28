@@ -21,7 +21,7 @@ Instructions:
   - Detailed appearance description (team, jersey color, number, physical characteristics)
   - Specific action or event
   - Temporal qualifiers (e.g., "second shot", "third attempt")
-- `A_window_frame`: The time window (in frames) when this specific action occurs
+- `A_window_frame`: The time window (in original video frame numbers) when this specific action occurs
 - `first_frame_description`: Natural language description of the object's location in the first frame of the answer window (e.g., "the player in red jersey number 12 on the left side of the court"). We will use this to generate the bounding box.
 
 The segment's starting frame in the original video is frame {num_first_frame}.
