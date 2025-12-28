@@ -301,6 +301,17 @@ class SpatialTemporalGroundingAnnotator(BaseAnnotator):
 class ContinuousActionsCaptionAnnotator(BaseAnnotator):
     """Annotator for Continuous Actions Caption task."""
 
+    def __init__(
+        self,
+        gemini_client: GeminiClient,
+        prompt_loader: PromptLoader,
+        bbox_annotator: BBoxAnnotator,
+        tracker: ObjectTracker
+    ):
+        super().__init__(gemini_client, prompt_loader)
+        self.bbox_annotator = bbox_annotator
+        self.tracker = tracker
+
     def get_task_name(self) -> str:
         return "Continuous_Actions_Caption"
 
@@ -326,6 +337,32 @@ class ContinuousActionsCaptionAnnotator(BaseAnnotator):
 
             # Get annotation from AI
             result = self.gemini_client.annotate_video(video_file, prompt)
+
+            first_frame_desc = result.get("first_frame_description", "")
+            q_window = result.get("Q_window_frame", [])
+
+            if first_frame_desc and len(q_window) == 2:
+                frame_path = VideoUtils.extract_frame(
+                    segment_metadata.get_video_path(dataset_root),
+                    q_window[0]
+                )
+                first_bbox = self.bbox_annotator.annotate_single_object(
+                    frame_path, first_frame_desc
+                )
+                first_bboxes_with_label = [{
+                    "bbox": first_bbox.to_list(),
+                    "label": first_frame_desc
+                }]
+                tracking_result = self.tracker.track_from_first_bbox(
+                    segment_metadata.get_video_path(dataset_root),
+                    first_bboxes_with_label,
+                    q_window[0],
+                    q_window[1]
+                )
+                result["first_bounding_box"] = first_bbox.to_list()
+                result["tracking_bboxes"] = tracking_result.to_dict()
+
+            result.pop("first_frame_description", None)
 
             # Validate answer window alignment
             a_windows = result.get("A_window_frame", [])
@@ -519,7 +556,7 @@ class TaskAnnotatorFactory:
                 gemini_client, prompt_loader, bbox_annotator, tracker
             ),
             "Continuous_Actions_Caption": lambda: ContinuousActionsCaptionAnnotator(
-                gemini_client, prompt_loader
+                gemini_client, prompt_loader, bbox_annotator, tracker
             ),
             "Continuous_Events_Caption": lambda: ContinuousEventsCaptionAnnotator(
                 gemini_client, prompt_loader

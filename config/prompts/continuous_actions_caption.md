@@ -12,6 +12,7 @@ Please annotate according to the following JSON template:
     "Q_window_frame": [10, 20],
     "question": "Please continuously describe the actions of the athlete in the video, and output the corresponding time intervals.",
     "A_window_frame": ["10-13", "14-17", "18-20"],
+    "first_frame_description": "the player wearing red jersey number 10 on the right side of the court",
     "answer": [
         "Dribbles the ball to the left side for a breakthrough",
         "Performs a sudden stop and change of direction, shaking off the defender",
@@ -25,6 +26,7 @@ Instructions:
 - `Q_window_frame`: The question frame window, calculated in frames, modify according to video content
 - `question`: Modify according to video content to specify which athlete's actions to describe
 - `A_window_frame`: Answer frame windows, calculated in frames, modify according to video content. The time segments should be continuous and non-overlapping.
+- `first_frame_description`: A concise description of the target athlete in the first frame of Q_window_frame. Include appearance and location so the target can be grounded.
 - `answer`: The answers should align with the number of answer frame windows. Each answer describes a distinct action phase.
 
 The segment's starting frame in the original video is frame {num_first_frame}.

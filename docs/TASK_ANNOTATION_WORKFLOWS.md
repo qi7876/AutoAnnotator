@@ -53,8 +53,11 @@
 
 - 目标：连续描述一个运动员的动作序列。
 - 输出字段：
-  - Q_window_frame, A_window_frame(多个片段), question, answer(动作列表)
+  - Q_window_frame, A_window_frame(多个片段), question, first_frame_description, answer(动作列表)
 - 后处理：
+  - 抽取 Q_window_frame 首帧
+  - 用 BBoxAnnotator 生成首帧 bbox
+  - 用 ObjectTracker 生成 tracking_bboxes
   - 校验 A_window_frame 数量与 answer 数量一致（不一致仅告警）
 
 ### 6) Continuous_Events_Caption（连续事件描述）
