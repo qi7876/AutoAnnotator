@@ -12,6 +12,10 @@ from pydantic import BaseModel, Field, field_validator
 class GeminiConfig(BaseModel):
     """Gemini API configuration."""
 
+    model_backend: str = "ai_studio"
+    grounding_backend: str = "ai_studio"
+    model_api_key: str = ""
+    grounding_api_key: str = ""
     model: str = "gemini-2.5-flash"
     grounding_model: str = "gemini-robotics-er-1.5-preview"
     generation_config: Dict[str, Any] = Field(default_factory=dict)
@@ -100,7 +104,14 @@ class ConfigManager:
             config_data = yaml.safe_load(f)
 
         # Add environment variables
-        config_data["api_key"] = os.getenv("GEMINI_API_KEY", "")
+        config_data["api_key"] = ""
+        config_data.setdefault("gemini", {})
+        model_api_key = os.getenv("GEMINI_MODEL_API_KEY", "").strip()
+        if model_api_key:
+            config_data["gemini"]["model_api_key"] = model_api_key
+        grounding_api_key = os.getenv("GEMINI_GROUNDING_API_KEY", "").strip()
+        if grounding_api_key:
+            config_data["gemini"]["grounding_api_key"] = grounding_api_key
         config_data["project_root"] = os.getenv(
             "PROJECT_ROOT",
             str(Path(__file__).parent.parent.parent)
@@ -111,10 +122,23 @@ class ConfigManager:
         )
 
         # Validate API key
-        if not config_data["api_key"]:
+        if not config_data["gemini"].get("model_api_key"):
             raise ValueError(
-                "GEMINI_API_KEY not found in environment variables. "
+                "GEMINI_MODEL_API_KEY not found in environment variables. "
                 "Please copy config/.env.example to config/.env and add your API key."
+            )
+        if not config_data["gemini"].get("grounding_api_key"):
+            raise ValueError(
+                "GEMINI_GROUNDING_API_KEY not found in environment variables. "
+                "Please set GEMINI_GROUNDING_API_KEY."
+            )
+        if not config_data["gemini"].get("model_backend"):
+            raise ValueError(
+                "gemini.model_backend not configured. Please set it in config/config.yaml."
+            )
+        if not config_data["gemini"].get("grounding_backend"):
+            raise ValueError(
+                "gemini.grounding_backend not configured. Please set it in config/config.yaml."
             )
 
         # Create config object

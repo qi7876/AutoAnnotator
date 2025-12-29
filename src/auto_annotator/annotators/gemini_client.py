@@ -21,18 +21,30 @@ class GeminiClient:
     def __init__(self):
         """Initialize Gemini client."""
         self.config = get_config()
-
-        self.client = genai.Client(api_key=self.config.api_key)
+        self.model_backend = self.config.gemini.model_backend.lower()
+        self.grounding_backend = self.config.gemini.grounding_backend.lower()
+        model_key = self.config.gemini.model_api_key
+        grounding_key = self.config.gemini.grounding_api_key
+        self.model_client = self._create_client(self.model_backend, model_key)
+        self.grounding_client = self._create_client(self.grounding_backend, grounding_key)
         self.model_name = self.config.gemini.model
         self.grounding_model_name = self.config.gemini.grounding_model
 
         self.generation_config = self.config.gemini.generation_config
 
         logger.info(
-            "Initialized Gemini client with model=%s grounding_model=%s",
+            "Initialized Gemini client model_backend=%s grounding_backend=%s model=%s grounding_model=%s",
+            self.model_backend,
+            self.grounding_backend,
             self.model_name,
             self.grounding_model_name
         )
+
+    def _create_client(self, backend: str, api_key: str) -> genai.Client:
+        vertex_backends = {"vertexai", "vertex_ai", "vertex"}
+        if backend in vertex_backends:
+            return genai.Client(api_key=api_key, vertexai=True)
+        return genai.Client(api_key=api_key)
 
     def _build_generation_config(
         self,
@@ -71,7 +83,7 @@ class GeminiClient:
         logger.info(f"Uploading video: {video_path}")
 
         try:
-            video_file = self.client.files.upload(file=video_path)
+            video_file = self.model_client.files.upload(file=video_path)
             logger.info(f"Uploaded file '{video_file.name}' as: {video_file.uri}")
 
             # Wait for file to be processed
@@ -86,7 +98,7 @@ class GeminiClient:
 
                 logger.info("Waiting for video processing...")
                 time.sleep(2)
-                video_file = self.client.files.get(name=video_file.name)
+                video_file = self.model_client.files.get(name=video_file.name)
 
             if video_file.state.name == "FAILED":
                 raise ValueError(f"Video processing failed: {video_file.state}")
@@ -141,7 +153,7 @@ class GeminiClient:
                     fps=self.config.gemini.video_sampling_fps
                 )
             )
-            response = self.client.models.generate_content(
+            response = self.model_client.models.generate_content(
                 model=self.model_name,
                 contents=[video_part, prompt],
                 config=request_config
@@ -187,7 +199,7 @@ class GeminiClient:
                 data=image_bytes,
                 mime_type=mime_type or "image/jpeg"
             )
-            response = self.client.models.generate_content(
+            response = self.model_client.models.generate_content(
                 model=self.model_name,
                 contents=[image_part, prompt],
                 config=request_config,
@@ -225,7 +237,7 @@ class GeminiClient:
         """
         logger.info(f"Generating bounding box for: {description}")
         MODEL_ID = self.grounding_model_name
-        client = self.client
+        client = self.grounding_client
 
         if task_type == "single_box":   
             prompt = f"""

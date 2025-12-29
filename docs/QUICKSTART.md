@@ -66,8 +66,9 @@ nano config/.env  # 或 vim, code, 等
 编辑 `config/.env`，填入你的配置：
 
 ```env
-# Google Gemini API 密钥（必需）
-GEMINI_API_KEY=your_api_key_here
+# Google Gemini API 后端与密钥
+GEMINI_MODEL_API_KEY=your_model_api_key_here
+GEMINI_GROUNDING_API_KEY=your_grounding_api_key_here
 
 # 项目根目录（自动设置，通常不需要修改）
 PROJECT_ROOT=/path/to/AutoAnnotator
@@ -324,13 +325,17 @@ print(f"验证结果: {'通过' if is_valid else f'失败 - {error}'}")
 
 ## 🐛 故障排除
 
-### "GEMINI_API_KEY not found"
+### "GEMINI_MODEL_API_KEY not found"
 
 确保创建了 `config/.env` 并设置了 API 密钥：
 
 ```bash
 cp config/.env.example config/.env
 # 编辑 config/.env 添加密钥
+```
+```
+GEMINI_MODEL_API_KEY=your_model_api_key_here
+GEMINI_GROUNDING_API_KEY=your_grounding_api_key_here
 ```
 
 ### "Video file not found"

@@ -2,6 +2,8 @@
 
 # Gemini API Settings
 gemini:
+  model_backend: "vertexai"
+  grounding_backend: "ai_studio"
   model: "gemini-3-pro-preview"
   grounding_model: "gemini-robotics-er-1.5-preview"
   video_sampling_fps: 10

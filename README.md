@@ -53,7 +53,7 @@ uv sync
 3. **配置 API 密钥**：
 ```bash
 cp config/.env.example config/.env
-# 编辑 config/.env，添加你的 GEMINI_API_KEY
+# 编辑 config/.env，选择后端并添加凭证
 ```
 
 4. **验证安装**：
@@ -68,7 +68,8 @@ uv run python -c "from auto_annotator import get_config; print('安装成功！'
 创建 `config/.env` 文件：
 
 ```env
-GEMINI_API_KEY=your_api_key_here
+GEMINI_MODEL_API_KEY=your_model_api_key_here
+GEMINI_GROUNDING_API_KEY=your_grounding_api_key_here
 PROJECT_ROOT=/path/to/AutoAnnotator
 DATASET_ROOT=/path/to/AutoAnnotator/data/Dataset
 ```
@@ -351,10 +352,11 @@ class NewTaskAnnotator(BaseAnnotator):
 
 ### API 密钥问题
 
-如果看到 "GEMINI_API_KEY not found" 错误：
+如果看到 "GEMINI_MODEL_API_KEY not found" 错误：
 1. 确保 `config/.env` 文件存在
-2. 检查 API 密钥是否正确设置
-3. 在 Google AI Studio 中验证密钥有效性
+2. 检查 `GEMINI_MODEL_API_KEY` 是否正确设置
+3. 检查 `GEMINI_GROUNDING_API_KEY` 是否正确设置
+4. 在 Google AI Studio 中验证密钥有效性
 
 ### 视频上传超时
 
