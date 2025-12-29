@@ -135,6 +135,21 @@ class GeminiClient:
         merged.update(overrides)
         return types.GenerateContentConfig(**merged)
 
+    def _build_model_generation_config(
+        self,
+        overrides: Optional[Dict[str, Any]] = None
+    ) -> types.GenerateContentConfig:
+        level_str = self.config.gemini.model_thinking_level.strip().upper()
+        thinking_level = getattr(types.ThinkingLevel, level_str, types.ThinkingLevel.HIGH)
+        thinking_overrides = {
+            "thinking_config": types.ThinkingConfig(
+                thinking_level=thinking_level
+            )
+        }
+        if overrides:
+            thinking_overrides.update(overrides)
+        return self._build_generation_config(overrides=thinking_overrides)
+
     def upload_video(self, video_path: Path) -> Any:
         """
         Upload a video file to Gemini File API.
@@ -218,7 +233,7 @@ class GeminiClient:
         if timeout is None:
             timeout = self.config.gemini.video["processing_timeout_sec"]
 
-        request_config = self._build_generation_config(
+        request_config = self._build_model_generation_config(
             overrides={
                 "http_options": types.HttpOptions(
                     timeout=int(timeout * 1000)
@@ -278,7 +293,7 @@ class GeminiClient:
         Returns:
             Annotation result as dictionary
         """
-        request_config = self._build_generation_config()
+        request_config = self._build_model_generation_config()
         logger.info("Generating image annotation with model=%s", self.model_name)
 
         try:
@@ -354,7 +369,12 @@ class GeminiClient:
             image_response = client.models.generate_content(
                 model=MODEL_ID,
                 contents=[types.Part.from_bytes(data=image_bytes, mime_type=mime_type), prompt],
-                config=types.GenerateContentConfig(temperature=0, thinking_config=types.ThinkingConfig(thinking_budget=0))
+                config=types.GenerateContentConfig(
+                    temperature=0,
+                    thinking_config=types.ThinkingConfig(
+                        thinking_budget=self.config.gemini.grounding_thinking_budget
+                    )
+                )
             )
 
             data = self._parse_json_response(image_response.text)

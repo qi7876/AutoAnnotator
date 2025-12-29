@@ -21,6 +21,8 @@ class GeminiConfig(BaseModel):
     gcs_sync_delete: bool = True
     model: str = "gemini-2.5-flash"
     grounding_model: str = "gemini-robotics-er-1.5-preview"
+    model_thinking_level: str = "high"
+    grounding_thinking_budget: int = 0
     generation_config: Dict[str, Any] = Field(default_factory=dict)
     video: Dict[str, Any] = Field(default_factory=dict)
     video_sampling_fps: int = 1
