@@ -18,11 +18,11 @@ Please return JSON in the following format:
 
 Instructions:
 - `annotation_id`, `task_L1`, `task_L2`: I will fill these fields.
-- `timestamp_frame`: Frame number in the original video where the scoreboard is clearly visible.
+- `timestamp_frame`: Frame number in the clip where the scoreboard is clearly visible.
 - `question`: Ask about the scoreboard content (ranking, scores, time remaining).
 - `answer`: Use only what is visible on the scoreboard.
 - `bounding_box`: Natural language description of the scoreboard location, no coordinates.
 
-The segment starts at frame {num_first_frame} in the original video and has {total_frames} frames.
+The segment has {total_frames} frames in total.
 
 Return JSON only.

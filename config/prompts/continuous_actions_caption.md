@@ -23,13 +23,12 @@ Please annotate according to the following JSON template:
 
 Instructions:
 - `annotation_id`, `task_L1`, `task_L2`: I will maintain these fields, you don't need to annotate them
-- `Q_window_frame`: The question frame window, in original video frame numbers. Modify according to video content.
+- `Q_window_frame`: The question frame window, in clip frame numbers. Modify according to video content.
 - `question`: Modify according to video content to specify which athlete's actions to describe
-- `A_window_frame`: Answer frame windows, in original video frame numbers. The time segments should be continuous and non-overlapping.
+- `A_window_frame`: Answer frame windows, in clip frame numbers. The time segments should be continuous and non-overlapping.
 - `first_frame_description`: A concise description of the target athlete in the first frame of Q_window_frame. Include appearance and location so the target can be grounded.
 - `answer`: The answers should align with the number of answer frame windows. Each answer describes a distinct action phase.
 
-The segment's starting frame in the original video is frame {num_first_frame}.
 The segment has {total_frames} frames in total.
 
 Please note the response format. The time periods in A_window_frame are segmented, and the number of segments should align with the number of answers in the answer array.

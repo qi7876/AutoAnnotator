@@ -14,6 +14,29 @@ from .tracker import ObjectTracker
 logger = logging.getLogger(__name__)
 
 
+def _ensure_clip_frame_range(frame: Any, segment_metadata: ClipMetadata, field: str) -> int:
+    frame_int = int(frame)
+    total = segment_metadata.info.total_frames
+    if frame_int < 0 or frame_int >= total:
+        raise ValueError(
+            f"{field} {frame_int} out of range for clip (total_frames={total})."
+        )
+    return frame_int
+
+
+def _ensure_clip_window_range(
+    window: Any,
+    segment_metadata: ClipMetadata,
+    field: str
+) -> tuple[int, int]:
+    if not isinstance(window, list) or len(window) != 2:
+        raise ValueError(f"{field} must be a list of two integers.")
+    start = _ensure_clip_frame_range(window[0], segment_metadata, f"{field}[0]")
+    end = _ensure_clip_frame_range(window[1], segment_metadata, f"{field}[1]")
+    if end < start:
+        raise ValueError(f"{field} end frame must be >= start frame.")
+    return start, end
+
 class ScoreboardSingleAnnotator(BaseAnnotator):
     """Annotator for Scoreboard Understanding - Single Frame task."""
 
@@ -70,7 +93,11 @@ class ScoreboardSingleAnnotator(BaseAnnotator):
             if isinstance(bbox_description, str):
                 # Extract frame from video
                 timestamp_frame = result.get("timestamp_frame", 0)
-                clip_frame = int(timestamp_frame) - segment_metadata.info.original_starting_frame
+                clip_frame = _ensure_clip_frame_range(
+                    timestamp_frame,
+                    segment_metadata,
+                    "timestamp_frame"
+                )
                 frame_path = VideoUtils.extract_frame(
                     segment_metadata.get_video_path(dataset_root),
                     clip_frame
@@ -189,7 +216,11 @@ class ObjectsSpatialRelationshipsAnnotator(BaseAnnotator):
             if isinstance(bbox_info, list) and bbox_info:
                 # Extract frame
                 timestamp_frame = result.get("timestamp_frame", 0)
-                clip_frame = int(timestamp_frame) - segment_metadata.info.original_starting_frame
+                clip_frame = _ensure_clip_frame_range(
+                    timestamp_frame,
+                    segment_metadata,
+                    "timestamp_frame"
+                )
                 if is_single_frame or is_image_file:
                     frame_path = media_path
                 else:
@@ -265,14 +296,25 @@ class SpatialTemporalGroundingAnnotator(BaseAnnotator):
             # Get annotation from AI
             result = self.gemini_client.annotate_video(video_file, prompt)
 
+            if isinstance(result, list):
+                if len(result) == 1 and isinstance(result[0], dict):
+                    result = result[0]
+                else:
+                    raise ValueError(
+                        f"Unexpected Spatial_Temporal_Grounding response format: {result}"
+                    )
+
             # Get first frame description
             first_frame_desc = result.get("first_frame_description", "")
             a_window = result.get("A_window_frame", [])
 
             if first_frame_desc and len(a_window) == 2:
                 # Extract first frame of answer window
-                clip_start = int(a_window[0]) - segment_metadata.info.original_starting_frame
-                clip_end = int(a_window[1]) - segment_metadata.info.original_starting_frame
+                clip_start, clip_end = _ensure_clip_window_range(
+                    a_window,
+                    segment_metadata,
+                    "A_window_frame"
+                )
                 frame_path = VideoUtils.extract_frame(
                     segment_metadata.get_video_path(dataset_root),
                     clip_start
@@ -353,8 +395,11 @@ class ContinuousActionsCaptionAnnotator(BaseAnnotator):
             q_window = result.get("Q_window_frame", [])
 
             if first_frame_desc and len(q_window) == 2:
-                clip_start = int(q_window[0]) - segment_metadata.info.original_starting_frame
-                clip_end = int(q_window[1]) - segment_metadata.info.original_starting_frame
+                clip_start, clip_end = _ensure_clip_window_range(
+                    q_window,
+                    segment_metadata,
+                    "Q_window_frame"
+                )
                 frame_path = VideoUtils.extract_frame(
                     segment_metadata.get_video_path(dataset_root),
                     clip_start
@@ -492,8 +537,11 @@ class ObjectTrackingAnnotator(BaseAnnotator):
 
             if first_frame_desc and len(q_window) == 2:
                 # Extract first frame
-                clip_start = int(q_window[0]) - segment_metadata.info.original_starting_frame
-                clip_end = int(q_window[1]) - segment_metadata.info.original_starting_frame
+                clip_start, clip_end = _ensure_clip_window_range(
+                    q_window,
+                    segment_metadata,
+                    "Q_window_frame"
+                )
                 frame_path = VideoUtils.extract_frame(
                     segment_metadata.get_video_path(dataset_root),
                     clip_start

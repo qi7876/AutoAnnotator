@@ -17,10 +17,10 @@ Please return JSON in the following format:
 
 Instructions:
 - `annotation_id`, `task_L1`, `task_L2`: I will fill these fields.
-- `Q_window_frame`: Frame window for tracking (original video frame numbers, cover the full segment).
+- `Q_window_frame`: Frame window for tracking (clip frame numbers, cover the full segment).
 - `query`: One sentence describing the tracking target.
 - `first_frame_description`: One concise description of the target in the first frame. Include appearance and location.
 
-The segment starts at frame {num_first_frame} in the original video and has {total_frames} frames in total.
+The segment has {total_frames} frames in total.
 
 Return JSON only.

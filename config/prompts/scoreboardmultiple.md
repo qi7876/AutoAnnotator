@@ -18,12 +18,11 @@ Please annotate according to the following JSON template:
 
 Instructions:
 - `annotation_id`, `task_L1`, `task_L2`: I will maintain these fields, you don't need to annotate them
-- `Q_window_frame`: The time window (in original video frame numbers) for the question, covering the entire segment where changes occur
+- `Q_window_frame`: The time window (in clip frame numbers) for the question, covering the entire segment where changes occur
 - `question`: Create a question about the changes in scoreboard content (e.g., ranking changes, score progression)
-- `A_window_frame`: Time windows (in original video frame numbers) showing the relevant scoreboard states referenced in the answer. Provide exactly two windows showing the before and after states.
+- `A_window_frame`: Time windows (in clip frame numbers) showing the relevant scoreboard states referenced in the answer. Provide exactly two windows showing the before and after states.
 - `answer`: Provide a detailed answer describing the changes between the two scoreboard states
 
-The segment's starting frame in the original video is frame {num_first_frame}.
 The segment has {total_frames} frames in total.
 
 Please analyze the video content and return your annotation in JSON format.

@@ -13,6 +13,32 @@ from .config import get_config
 from .utils import JSONUtils, PromptLoader
 
 
+class ColorFormatter(logging.Formatter):
+    """Add ANSI colors to console logs."""
+
+    COLORS = {
+        logging.DEBUG: "\033[90m",
+        logging.INFO: "\033[32m",
+        logging.WARNING: "\033[33m",
+        logging.ERROR: "\033[31m",
+        logging.CRITICAL: "\033[35m",
+    }
+    RESET = "\033[0m"
+
+    def __init__(self, fmt: str, use_color: bool):
+        super().__init__(fmt)
+        self.use_color = use_color
+
+    def format(self, record: logging.LogRecord) -> str:
+        message = super().format(record)
+        if not self.use_color:
+            return message
+        color = self.COLORS.get(record.levelno)
+        if not color:
+            return message
+        return f"{color}{message}{self.RESET}"
+
+
 def setup_logging():
     """Setup logging configuration."""
     config = get_config()
@@ -24,14 +50,19 @@ def setup_logging():
     print(f"Logging to: {log_file}")
 
     # Configure logging
-    logging.basicConfig(
-        level=getattr(logging, config.logging.level),
-        format=config.logging.format,
-        handlers=[
-            logging.FileHandler(log_file, mode="w"),
-            logging.StreamHandler(sys.stdout)
-        ]
-    )
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
+    root_logger.setLevel(getattr(logging, config.logging.level))
+
+    file_handler = logging.FileHandler(log_file, mode="w")
+    file_handler.setFormatter(logging.Formatter(config.logging.format))
+
+    use_color = sys.stdout.isatty()
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setFormatter(ColorFormatter(config.logging.format, use_color))
+
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(stream_handler)
 
     logger = logging.getLogger(__name__)
     logger.info("="*60)
