@@ -1,10 +1,13 @@
 """Gemini API client for video annotation."""
 
+import base64
+import hashlib
 import json
 import logging
 import mimetypes
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Union
 
 from google import genai
@@ -39,6 +42,75 @@ class GeminiClient:
             self.model_name,
             self.grounding_model_name
         )
+        self._gcs_client = None
+
+    def _get_gcs_client(self):
+        if self._gcs_client is not None:
+            return self._gcs_client
+        try:
+            from google.cloud import storage  # type: ignore
+        except ImportError as exc:
+            raise ImportError(
+                "google-cloud-storage is required for GCS uploads. "
+                "Please add it to your environment."
+            ) from exc
+        self._gcs_client = storage.Client()
+        return self._gcs_client
+
+    def _ensure_gcs_bucket(self) -> str:
+        bucket = self.config.gemini.gcs_bucket.strip()
+        if not bucket:
+            raise ValueError(
+                "gemini.gcs_bucket is required when using Vertex AI for video."
+            )
+        return bucket
+
+    def _build_gcs_object_name(self, local_path: Path) -> str:
+        dataset_root = self.config.dataset_root
+        try:
+            rel_path = local_path.resolve().relative_to(dataset_root.resolve())
+        except ValueError:
+            rel_path = local_path.name
+        rel_posix = str(rel_path).replace("\\", "/")
+        prefix = self.config.gemini.gcs_prefix.strip().strip("/")
+        if prefix:
+            return f"{prefix}/{rel_posix}"
+        return rel_posix
+
+    def _compute_md5_base64(self, file_path: Path) -> str:
+        hasher = hashlib.md5()
+        with file_path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                hasher.update(chunk)
+        return base64.b64encode(hasher.digest()).decode("ascii")
+
+    def sync_gcs_objects(self, local_paths: List[Path]) -> None:
+        if self.model_backend not in {"vertexai", "vertex_ai", "vertex"}:
+            return
+        bucket_name = self._ensure_gcs_bucket()
+        gcs_client = self._get_gcs_client()
+        bucket = gcs_client.bucket(bucket_name)
+
+        desired_objects = {}
+        for local_path in local_paths:
+            object_name = self._build_gcs_object_name(local_path)
+            desired_objects[object_name] = local_path
+
+        for object_name, local_path in desired_objects.items():
+            blob = bucket.blob(object_name)
+            if blob.exists():
+                blob.reload()
+                local_md5 = self._compute_md5_base64(local_path)
+                if blob.md5_hash == local_md5:
+                    continue
+            blob.upload_from_filename(local_path)
+
+        if self.config.gemini.gcs_sync_delete:
+            prefix = self.config.gemini.gcs_prefix.strip().strip("/")
+            list_prefix = f"{prefix}/" if prefix else ""
+            for blob in bucket.list_blobs(prefix=list_prefix):
+                if blob.name not in desired_objects:
+                    blob.delete()
 
     def _create_client(self, backend: str, api_key: str) -> genai.Client:
         vertex_backends = {"vertexai", "vertex_ai", "vertex"}
@@ -83,6 +155,19 @@ class GeminiClient:
         logger.info(f"Uploading video: {video_path}")
 
         try:
+            if self.model_backend in {"vertexai", "vertex_ai", "vertex"}:
+                bucket_name = self._ensure_gcs_bucket()
+                gcs_client = self._get_gcs_client()
+                bucket = gcs_client.bucket(bucket_name)
+                object_name = self._build_gcs_object_name(video_path)
+                blob = bucket.blob(object_name)
+                if blob.exists():
+                    blob.reload()
+                local_md5 = self._compute_md5_base64(video_path)
+                if not blob.exists() or blob.md5_hash != local_md5:
+                    blob.upload_from_filename(video_path)
+                return SimpleNamespace(uri=f"gs://{bucket_name}/{object_name}", name=object_name)
+
             video_file = self.model_client.files.upload(file=video_path)
             logger.info(f"Uploaded file '{video_file.name}' as: {video_file.uri}")
 
@@ -143,16 +228,24 @@ class GeminiClient:
         logger.info("Generating annotation with model=%s", self.model_name)
 
         try:
-            video_file_uri = video_file.uri
-            video_part = types.Part(
-                file_data=types.FileData(
-                    file_uri=video_file_uri,
-                    mime_type="video/mp4"
-                ),
-                video_metadata=types.VideoMetadata(
-                    fps=self.config.gemini.video_sampling_fps
+            if isinstance(video_file, Path):
+                video_bytes = video_file.read_bytes()
+                mime_type = mimetypes.guess_type(str(video_file))[0] or "video/mp4"
+                video_part = types.Part.from_bytes(
+                    data=video_bytes,
+                    mime_type=mime_type
                 )
-            )
+            else:
+                video_part = types.Part(
+                    file_data=types.FileData(
+                        file_uri=video_file.uri,
+                        mime_type="video/mp4"
+                    ),
+                    video_metadata=types.VideoMetadata(
+                        fps=self.config.gemini.video_sampling_fps
+                    )
+                )
+
             response = self.model_client.models.generate_content(
                 model=self.model_name,
                 contents=[video_part, prompt],
@@ -319,8 +412,13 @@ class GeminiClient:
         Args:
             file_obj: Uploaded file object
         """
+        if isinstance(file_obj, Path):
+            return
+        if hasattr(file_obj, "uri") and str(file_obj.uri).startswith("gs://"):
+            return
+
         try:
-            self.client.files.delete(name=file_obj.name)
+            self.model_client.files.delete(name=file_obj.name)
             logger.info(f"Deleted file: {file_obj.name}")
         except Exception as e:
             logger.warning(f"Failed to delete file: {e}")

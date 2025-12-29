@@ -363,5 +363,5 @@ python --version  # 应该是 3.10+
 1. 阅读 [数据集结构说明](DATASET_STRUCTURE.md) 了解详细的数据组织
 2. 查看 [使用示例](USAGE_EXAMPLES.md) 学习更多高级用法
 3. 参考 [API 文档](../README.md#-python-api) 了解完整的 API
-4. 自定义 [配置文件](../config/config.yaml)
+4. 自定义 [配置文件](../config/config.yaml)（包含 Vertex 视频的 GCS bucket 配置）
 5. 自定义 [提示词模板](../config/prompts/)

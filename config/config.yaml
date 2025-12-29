@@ -4,7 +4,10 @@
 gemini:
   model_backend: "vertexai"
   grounding_backend: "ai_studio"
-  model: "gemini-3-pro-preview"
+  gcs_bucket: "mllmbenchmark"
+  gcs_prefix: ""
+  gcs_sync_delete: true
+  model: "gemini-3-flash-preview" # gemini-3-flash-preview, gemini-3-pro-preview
   grounding_model: "gemini-robotics-er-1.5-preview"
   video_sampling_fps: 10
   generation_config:
@@ -15,36 +18,13 @@ gemini:
   video:
     upload_timeout_sec: 600
     processing_timeout_sec: 300
-    fps_for_annotation: 10
 
 # Output settings
 output:
   temp_dir: "data/output/temp"
-  final_dir: "data/output/final"
-  keep_temp_files: false
 
 # Task configuration
 tasks:
-  enabled:
-    - "ScoreboardSingle"
-    - "ScoreboardMultiple"
-    - "Objects_Spatial_Relationships"
-    - "Spatial_Temporal_Grounding"
-    - "Continuous_Actions_Caption"
-    - "Continuous_Events_Caption"
-    - "Object_Tracking"
-
-  # Task-specific configurations
-  scoreboard_single:
-    min_confidence: 0.7
-
-  scoreboard_multiple:
-    min_window_frames: 10
-
-  spatial_relationships:
-    min_objects: 2
-    max_objects: 2
-
   tracking:
     tracker_backend: "local"  # local or api
     model_path: "data/model/sam2.1_hiera_base_plus.pt"  # supports relative to project root

@@ -16,6 +16,9 @@ class GeminiConfig(BaseModel):
     grounding_backend: str = "ai_studio"
     model_api_key: str = ""
     grounding_api_key: str = ""
+    gcs_bucket: str = ""
+    gcs_prefix: str = ""
+    gcs_sync_delete: bool = True
     model: str = "gemini-2.5-flash"
     grounding_model: str = "gemini-robotics-er-1.5-preview"
     generation_config: Dict[str, Any] = Field(default_factory=dict)
@@ -27,17 +30,11 @@ class OutputConfig(BaseModel):
     """Output directory configuration."""
 
     temp_dir: str = "data/output/temp"
-    final_dir: str = "data/output/final"
-    keep_temp_files: bool = False
 
 
 class TasksConfig(BaseModel):
     """Tasks configuration."""
 
-    enabled: List[str] = Field(default_factory=list)
-    scoreboard_single: Dict[str, Any] = Field(default_factory=dict)
-    scoreboard_multiple: Dict[str, Any] = Field(default_factory=dict)
-    spatial_relationships: Dict[str, Any] = Field(default_factory=dict)
     tracking: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -150,11 +147,9 @@ class ConfigManager:
     def _create_directories(self):
         """Create necessary output directories."""
         temp_dir = Path(self._config.project_root) / self._config.output.temp_dir
-        final_dir = Path(self._config.project_root) / self._config.output.final_dir
         log_dir = Path(self._config.project_root) / Path(self._config.logging.file).parent
 
         temp_dir.mkdir(parents=True, exist_ok=True)
-        final_dir.mkdir(parents=True, exist_ok=True)
         log_dir.mkdir(parents=True, exist_ok=True)
 
     @property
@@ -171,10 +166,6 @@ class ConfigManager:
         """Get temporary output path for a clip."""
         temp_dir = Path(self._config.project_root) / self._config.output.temp_dir
         return temp_dir / f"{clip_id}.json"
-
-    def is_task_enabled(self, task_name: str) -> bool:
-        """Check if a task is enabled."""
-        return task_name in self._config.tasks.enabled
 
 
 # Global config instance

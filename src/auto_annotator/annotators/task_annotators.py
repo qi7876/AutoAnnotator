@@ -56,6 +56,14 @@ class ScoreboardSingleAnnotator(BaseAnnotator):
             else:
                 result = self.gemini_client.annotate_video(media_file, prompt)
 
+            if isinstance(result, list):
+                if len(result) == 1 and isinstance(result[0], dict):
+                    result = result[0]
+                else:
+                    raise ValueError(
+                        f"Unexpected ScoreboardSingle response format: {result}"
+                    )
+
             # Extract bounding box description
             bbox_description = result.get("bounding_box", "")
 

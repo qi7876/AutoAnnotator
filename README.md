@@ -79,6 +79,7 @@ DATASET_ROOT=/path/to/AutoAnnotator/data/Dataset
 编辑 `config/config.yaml` 以自定义：
 
 - Gemini 模型设置
+- Vertex 视频使用的 GCS bucket（gemini.gcs_bucket）
 - 输出目录
 - 任务特定参数
 - 日志配置

@@ -339,6 +339,15 @@ def process_segments_batch(
     if prune_orphans and loaded_segments:
         _prune_orphan_outputs(output_dir, valid_clip_ids)
 
+    if loaded_segments:
+        clip_paths = [
+            metadata.get_video_path(config.dataset_root)
+            for _, metadata in loaded_segments
+            if metadata.info.is_clip()
+        ]
+        if clip_paths:
+            gemini_client.sync_gcs_objects(clip_paths)
+
     # Process each segment
     successful = 0
     failed = 0
