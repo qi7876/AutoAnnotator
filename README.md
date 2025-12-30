@@ -385,12 +385,12 @@ python --version  # 应该是 3.10+
 3. 验证文件路径是否存在
 4. 参考 [docs/clip_metadata_schema.json](docs/clip_metadata_schema.json)
 
-## 🖥️ MOT 手工校正工具
+## 🖥️ BBoxFixer
 
 启动 GUI：
 
 ```bash
-uv run python scripts/mot_editor.py
+uv run python scripts/bbox_fixer.py
 ```
 
 默认读取：
@@ -402,6 +402,15 @@ uv run python scripts/mot_editor.py
 - 下方按钮切换帧
 - 左右侧按钮切换 clip
 - 拖动框的左上/右下角修正位置
+
+## 📦 打包（Windows 示例）
+
+```bash
+uv run python -m pip install pyinstaller
+uv run pyinstaller --onefile --windowed scripts/bbox_fixer.py
+```
+
+产物在 `dist/` 目录。
 
 ## 🔄 工作流集成
 

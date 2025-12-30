@@ -119,7 +119,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self._load_clip(self.clip_entries[self.clip_index])
 
     def _build_ui(self) -> None:
-        self.setWindowTitle("MOT Editor")
+        self.setWindowTitle("BBoxFixer")
         central = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(central)
 

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from mot_editor.mot_io import MotBox, MotStore
+from bbox_fixer.mot_io import MotBox, MotStore
 
 
 def test_mot_round_trip(tmp_path: Path) -> None:

@@ -1,1 +1,0 @@
-"""MOT editor package."""
