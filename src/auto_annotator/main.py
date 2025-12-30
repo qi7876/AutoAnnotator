@@ -95,7 +95,8 @@ def process_segment(
         Path to output JSON file
     """
     logger = logging.getLogger(__name__)
-    logger.info(f"Processing clip: {segment_metadata.id}")
+    segment_type = "frame" if segment_metadata.info.is_single_frame() else "clip"
+    logger.info(f"Processing {segment_type}: {segment_metadata.id}")
 
     # Validate segment metadata
     is_valid, error = InputAdapter.validate_metadata(
@@ -130,7 +131,7 @@ def process_segment(
     ]
 
     if not tasks_to_run:
-        logger.info(f"All tasks already annotated for: {segment_metadata.id}")
+        logger.info(f"All tasks already annotated for {segment_type}: {segment_metadata.id}")
         return output_path
 
     # Collect annotations for missing tasks

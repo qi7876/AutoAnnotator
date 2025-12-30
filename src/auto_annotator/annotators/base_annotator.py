@@ -148,3 +148,15 @@ class BaseAnnotator(ABC):
             return False, "Annotation must be a dictionary"
 
         return True, None
+
+    def normalize_result(self, result: Any) -> Dict[str, Any]:
+        """
+        Normalize model output into a dict.
+
+        Accepts a single dict or a list with one dict.
+        """
+        if isinstance(result, dict):
+            return result
+        if isinstance(result, list) and len(result) == 1 and isinstance(result[0], dict):
+            return result[0]
+        raise ValueError(f"Unexpected response format: {result}")

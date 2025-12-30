@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 def _ensure_clip_frame_range(frame: Any, segment_metadata: ClipMetadata, field: str) -> int:
     frame_int = int(frame)
     total = segment_metadata.info.total_frames
+    if total == 1:
+        return 0
     if frame_int < 0 or frame_int >= total:
         raise ValueError(
             f"{field} {frame_int} out of range for clip (total_frames={total})."
@@ -79,29 +81,26 @@ class ScoreboardSingleAnnotator(BaseAnnotator):
             else:
                 result = self.gemini_client.annotate_video(media_file, prompt)
 
-            if isinstance(result, list):
-                if len(result) == 1 and isinstance(result[0], dict):
-                    result = result[0]
-                else:
-                    raise ValueError(
-                        f"Unexpected ScoreboardSingle response format: {result}"
-                    )
+            result = self.normalize_result(result)
 
             # Extract bounding box description
             bbox_description = result.get("bounding_box", "")
 
             if isinstance(bbox_description, str):
-                # Extract frame from video
+                # Extract frame from video (or use single frame image)
                 timestamp_frame = result.get("timestamp_frame", 0)
-                clip_frame = _ensure_clip_frame_range(
-                    timestamp_frame,
-                    segment_metadata,
-                    "timestamp_frame"
-                )
-                frame_path = VideoUtils.extract_frame(
-                    segment_metadata.get_video_path(dataset_root),
-                    clip_frame
-                )
+                if is_single_frame:
+                    frame_path = media_path
+                else:
+                    clip_frame = _ensure_clip_frame_range(
+                        timestamp_frame,
+                        segment_metadata,
+                        "timestamp_frame"
+                    )
+                    frame_path = VideoUtils.extract_frame(
+                        segment_metadata.get_video_path(dataset_root),
+                        clip_frame
+                    )
 
                 # Use bbox_annotator to generate actual bounding box
                 bbox = self.bbox_annotator.annotate_single_object(
@@ -155,6 +154,8 @@ class ScoreboardMultipleAnnotator(BaseAnnotator):
                 result = self.gemini_client.annotate_image(media_path, prompt)
             else:
                 result = self.gemini_client.annotate_video(media_file, prompt)
+
+            result = self.normalize_result(result)
 
             # Add metadata
             result = self.add_metadata_fields(result)
@@ -210,20 +211,22 @@ class ObjectsSpatialRelationshipsAnnotator(BaseAnnotator):
             else:
                 result = self.gemini_client.annotate_video(media_file, prompt)
 
+            result = self.normalize_result(result)
+
             # Process bounding boxes
             bbox_info = result.get("bounding_box", [])
 
             if isinstance(bbox_info, list) and bbox_info:
                 # Extract frame
                 timestamp_frame = result.get("timestamp_frame", 0)
-                clip_frame = _ensure_clip_frame_range(
-                    timestamp_frame,
-                    segment_metadata,
-                    "timestamp_frame"
-                )
                 if is_single_frame or is_image_file:
                     frame_path = media_path
                 else:
+                    clip_frame = _ensure_clip_frame_range(
+                        timestamp_frame,
+                        segment_metadata,
+                        "timestamp_frame"
+                    )
                     frame_path = VideoUtils.extract_frame(
                         segment_metadata.get_video_path(dataset_root),
                         clip_frame
@@ -295,14 +298,7 @@ class SpatialTemporalGroundingAnnotator(BaseAnnotator):
 
             # Get annotation from AI
             result = self.gemini_client.annotate_video(video_file, prompt)
-
-            if isinstance(result, list):
-                if len(result) == 1 and isinstance(result[0], dict):
-                    result = result[0]
-                else:
-                    raise ValueError(
-                        f"Unexpected Spatial_Temporal_Grounding response format: {result}"
-                    )
+            result = self.normalize_result(result)
 
             # Get first frame description
             first_frame_desc = result.get("first_frame_description", "")
@@ -390,6 +386,7 @@ class ContinuousActionsCaptionAnnotator(BaseAnnotator):
 
             # Get annotation from AI
             result = self.gemini_client.annotate_video(video_file, prompt)
+            result = self.normalize_result(result)
 
             first_frame_desc = result.get("first_frame_description", "")
             q_window = result.get("Q_window_frame", [])
@@ -470,6 +467,7 @@ class ContinuousEventsCaptionAnnotator(BaseAnnotator):
 
             # Get annotation from AI
             result = self.gemini_client.annotate_video(video_file, prompt)
+            result = self.normalize_result(result)
 
             # Validate answer window alignment
             a_windows = result.get("A_window_frame", [])
@@ -530,6 +528,7 @@ class ObjectTrackingAnnotator(BaseAnnotator):
 
             # Get annotation from AI
             result = self.gemini_client.annotate_video(video_file, prompt)
+            result = self.normalize_result(result)
 
             # Get first frame description and tracking window
             first_frame_desc = result.get("first_frame_description", "")
