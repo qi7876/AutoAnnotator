@@ -395,7 +395,7 @@ uv run python scripts/bbox_fixer.py
 
 默认读取：
 - 数据集：`data/Dataset`
-- MOT 输出：`data/output/temp`
+- MOT 输出：`data/output`
 
 操作：
 - 左右方向键切换帧

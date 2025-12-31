@@ -12,7 +12,7 @@ from bbox_fixer.viewer import run_app  # noqa: E402
 
 def main() -> None:
     dataset_root = repo_root / "data" / "Dataset"
-    output_root = repo_root / "data" / "output" / "temp"
+    output_root = repo_root / "data" / "output"
     state_path = repo_root / "data" / "bbox_fixer_state.json"
     run_app(dataset_root, output_root, state_path)
 

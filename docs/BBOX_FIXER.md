@@ -25,7 +25,7 @@ uv run python scripts/bbox_fixer.py
 当前路径在 `scripts/bbox_fixer.py` 中固定为：
 
 - 数据集：`data/Dataset`
-- MOT 输出：`data/output/temp`
+- MOT 输出：`data/output`
 - 状态保存：`data/bbox_fixer_state.json`
 
 如果你需要修改路径，请直接编辑 `scripts/bbox_fixer.py` 中的 `dataset_root` 与 `output_root`。
@@ -33,7 +33,7 @@ uv run python scripts/bbox_fixer.py
 ## 数据与文件格式
 
 - 视频：`data/Dataset/{sport}/{event}/clips/{clip_id}.mp4`
-- MOT：`data/output/temp/{sport}/{event}/clips/mot/{clip_id}_{task_name}.txt`
+- MOT：`data/output/{sport}/{event}/clips/mot/{clip_id}_{task_name}.txt`
 - MOTChallenge 2D 格式：
   ```
   <frame>, <id>, <bb_left>, <bb_top>, <bb_width>, <bb_height>, <conf>, <x>, <y>, <z>
@@ -70,7 +70,6 @@ data/bbox_fixer_state.json
 
 ## 注意事项
 
-- 工具优先读取已有标注里的 mot_file/tracking_bboxes
-- 若标注缺失则回退为扫描 mot 文件夹
+- 工具只读取已有标注里的 mot_file/tracking_bboxes
 - 命名规则：`{clip_id}_{task_name}.txt`
 - MOT 写入为原子写：先写入 `.tmp` 再覆盖
