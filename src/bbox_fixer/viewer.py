@@ -83,6 +83,7 @@ class FrameView(QtWidgets.QGraphicsView):
         self.setScene(QtWidgets.QGraphicsScene())
         self.setRenderHints(QtGui.QPainter.Antialiasing)
         self.setAlignment(QtCore.Qt.AlignCenter)
+        self.setFocusPolicy(QtCore.Qt.StrongFocus)
         self._pixmap_item: Optional[QtWidgets.QGraphicsPixmapItem] = None
         self.box_items: List[BoxItem] = []
         self._fit_to_view = True
@@ -194,6 +195,8 @@ class MotEditorWindow(QtWidgets.QMainWindow):
 
         layout.addLayout(controls)
         self.setCentralWidget(central)
+        self.setFocusPolicy(QtCore.Qt.StrongFocus)
+        self.frame_view.setFocus()
 
     def log(self, message: str) -> None:
         self.log_box.append(message)
@@ -243,7 +246,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                 return default_path
             return None
 
-        def clip_requires_mot(output_path: Path, default_mot_path: Path) -> List[tuple[str, Path]]:
+        def clip_requires_mot(output_path: Path, default_mot_path: Path, clip_id: str) -> List[tuple[str, Path]]:
             mot_entries: List[tuple[str, Path]] = []
             output = safe_load_json(output_path)
             if output and isinstance(output, dict):
@@ -273,6 +276,9 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                     else:
                         mot_path = None
                     if mot_path is not None:
+                        # guard: mot path should belong to this clip if possible
+                        if clip_id not in Path(mot_path).stem and default_path.exists():
+                            mot_path = default_path
                         mot_entries.append((task_name or "tracking", mot_path))
             return mot_entries
 
@@ -302,7 +308,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                         / "clips"
                         / f"{clip_id}.json"
                     )
-                    mot_entries = clip_requires_mot(output_path, default_mot_path)
+                    mot_entries = clip_requires_mot(output_path, default_mot_path, clip_id)
                     if not mot_entries:
                         continue
                     for task_name, mot_path in mot_entries:
