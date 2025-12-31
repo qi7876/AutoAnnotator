@@ -70,7 +70,7 @@ data/bbox_fixer_state.json
 
 ## 注意事项
 
-- 工具只加载已有标注里包含 mot_file 或 tracking_bboxes 的 clip
-- 根据 mot_file 指向的文件是否存在决定是否加载
+- 工具优先读取已有标注里的 mot_file/tracking_bboxes
+- 若标注缺失则回退为扫描 mot 文件夹
 - 命名规则：`{clip_id}_{task_name}.txt`
 - MOT 写入为原子写：先写入 `.tmp` 再覆盖

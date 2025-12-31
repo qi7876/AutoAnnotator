@@ -185,6 +185,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
 
     def _discover_clips(self) -> List[ClipEntry]:
         entries: List[ClipEntry] = []
+        seen_keys: set[tuple[str, str, str, str]] = set()
         project_root = self.output_root
         if self.output_root.name == "temp" and self.output_root.parent.name == "output":
             project_root = self.output_root.parents[2]
@@ -261,6 +262,9 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                     if not mot_entries:
                         continue
                     for task_name, mot_path in mot_entries:
+                        key = (sport_dir.name, event_dir.name, clip_id, task_name)
+                        if key in seen_keys:
+                            continue
                         entries.append(
                             ClipEntry(
                                 sport_dir.name,
@@ -271,6 +275,37 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                                 mot_path,
                             )
                         )
+                        seen_keys.add(key)
+
+        mot_glob = self.output_root.glob("**/clips/mot/*.txt")
+        for mot_path in mot_glob:
+            try:
+                rel = mot_path.relative_to(self.output_root)
+                sport, event, _, _, mot_file = rel.parts[-5:]
+            except Exception:
+                continue
+            stem = Path(mot_file).stem
+            task_name = "tracking"
+            clip_id = stem
+            if "_" in stem:
+                clip_id, task_name = stem.rsplit("_", 1)
+            clip_path = self.dataset_root / sport / event / "clips" / f"{clip_id}.mp4"
+            if not clip_path.exists():
+                continue
+            key = (sport, event, clip_id, task_name)
+            if key in seen_keys:
+                continue
+            entries.append(
+                ClipEntry(
+                    sport,
+                    event,
+                    clip_id,
+                    task_name,
+                    clip_path,
+                    mot_path,
+                )
+            )
+            seen_keys.add(key)
         entries.sort(
             key=lambda e: (
                 e.sport,
