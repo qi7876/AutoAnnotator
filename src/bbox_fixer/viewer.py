@@ -288,7 +288,8 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         return entries
 
     def _load_clip(self, clip: ClipEntry) -> None:
-        self._save_current_frame()
+        if self.video_cap is not None:
+            self._save_current_frame()
         if self.video_cap:
             self.video_cap.release()
         self.video_cap = cv2.VideoCapture(str(clip.video_path))
@@ -311,7 +312,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self._render_frame()
 
     def _save_current_frame(self) -> None:
-        if not self.clip_entries:
+        if not self.clip_entries or self.video_cap is None:
             return
         boxes = self.frame_view.sync_boxes()
         current_frame = self.frame_index
