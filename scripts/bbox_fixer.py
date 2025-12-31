@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Launch BBoxFixer GUI."""
 
+import sys
 from pathlib import Path
 
-from bbox_fixer.viewer import run_app
+repo_root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(repo_root / "src"))
+
+from bbox_fixer.viewer import run_app  # noqa: E402
 
 
 def main() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
     dataset_root = repo_root / "data" / "Dataset"
     output_root = repo_root / "data" / "output" / "temp"
     state_path = repo_root / "data" / "bbox_fixer_state.json"
