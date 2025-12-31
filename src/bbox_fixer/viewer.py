@@ -27,12 +27,19 @@ class ClipEntry:
 
 class HandleItem(QtWidgets.QGraphicsEllipseItem):
     def __init__(self, parent: QtWidgets.QGraphicsItem, corner: str):
-        super().__init__(-4, -4, 8, 8, parent)
+        super().__init__(-8, -8, 16, 16, parent)
         self.corner = corner
         self.setBrush(QtGui.QBrush(QtGui.QColor(255, 255, 255)))
         self.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0), 1))
         self.setFlag(QtWidgets.QGraphicsItem.ItemIsMovable, True)
         self.setFlag(QtWidgets.QGraphicsItem.ItemSendsGeometryChanges, True)
+
+    def itemChange(self, change, value):
+        if change == QtWidgets.QGraphicsItem.ItemPositionHasChanged:
+            parent = self.parentItem()
+            if isinstance(parent, BoxItem):
+                parent.update_from_handles()
+        return super().itemChange(change, value)
 
 
 class BoxItem(QtWidgets.QGraphicsRectItem):
@@ -223,11 +230,15 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                 return None
 
         def resolve_mot_path(mot_ref: str, default_path: Path) -> Optional[Path]:
-            mot_path = Path(mot_ref)
-            if not mot_path.is_absolute():
-                mot_path = project_root / mot_path
-            if mot_path.exists():
-                return mot_path
+            if mot_ref:
+                mot_path = Path(mot_ref)
+                if not mot_path.is_absolute():
+                    candidates = [project_root / mot_path, self.output_root / mot_path]
+                    for candidate in candidates:
+                        if candidate.exists():
+                            return candidate
+                if mot_path.exists():
+                    return mot_path
             if default_path.exists():
                 return default_path
             return None
@@ -250,6 +261,13 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                         )
                     if mot_ref:
                         mot_path = resolve_mot_path(str(mot_ref), default_path)
+                        if (
+                            mot_path is not None
+                            and task_name
+                            and f"_{task_name}" not in mot_path.stem
+                            and default_path.exists()
+                        ):
+                            mot_path = default_path
                     elif ann.get("tracking_bboxes"):
                         mot_path = resolve_mot_path("", default_path)
                     else:
@@ -320,13 +338,11 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             self.video_cap.release()
         self.video_cap = cv2.VideoCapture(str(clip.video_path))
         self.total_frames = int(self.video_cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
+        self.frame_index = 1
         self.store = MotStore.load(clip.mot_path)
         if self.store.frames:
             first_frame = min(self.store.frames.keys())
-            if self.frame_index < 1 or self.frame_index > self.total_frames:
-                self.frame_index = first_frame
-            elif self.frame_index not in self.store.frames:
-                self.frame_index = first_frame
+            self.frame_index = first_frame
         else:
             self.frame_index = max(1, min(self.frame_index, self.total_frames))
             self.log("No MOT boxes found for this clip.")
