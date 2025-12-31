@@ -78,6 +78,7 @@ class FrameView(QtWidgets.QGraphicsView):
         self.setAlignment(QtCore.Qt.AlignCenter)
         self._pixmap_item: Optional[QtWidgets.QGraphicsPixmapItem] = None
         self.box_items: List[BoxItem] = []
+        self._fit_to_view = True
 
     def set_frame(self, image: QtGui.QImage, boxes: List[MotBox]) -> None:
         self.scene().clear()
@@ -90,11 +91,27 @@ class FrameView(QtWidgets.QGraphicsView):
             self.scene().addItem(item)
             self.box_items.append(item)
         self.scene().setSceneRect(pixmap.rect())
+        if self._fit_to_view:
+            self.fitInView(self.sceneRect(), QtCore.Qt.KeepAspectRatio)
 
     def sync_boxes(self) -> List[MotBox]:
         for item in self.box_items:
             item.update_from_handles()
         return [item.box for item in self.box_items]
+
+    def set_fit_mode(self, fit: bool) -> None:
+        self._fit_to_view = fit
+        if self._pixmap_item and fit:
+            self.fitInView(self.sceneRect(), QtCore.Qt.KeepAspectRatio)
+
+    def zoom(self, factor: float) -> None:
+        self._fit_to_view = False
+        self.scale(factor, factor)
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        super().resizeEvent(event)
+        if self._fit_to_view:
+            self.fitInView(self.sceneRect(), QtCore.Qt.KeepAspectRatio)
 
 
 class MotEditorWindow(QtWidgets.QMainWindow):
@@ -138,6 +155,9 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.next_clip_btn = QtWidgets.QPushButton("Next Clip >>")
         self.prev_frame_btn = QtWidgets.QPushButton("< Prev Frame")
         self.next_frame_btn = QtWidgets.QPushButton("Next Frame >")
+        self.fit_btn = QtWidgets.QPushButton("Fit")
+        self.zoom_in_btn = QtWidgets.QPushButton("Zoom +")
+        self.zoom_out_btn = QtWidgets.QPushButton("Zoom -")
         self.frame_input = QtWidgets.QLineEdit()
         self.frame_input.setFixedWidth(80)
         self.frame_input.setPlaceholderText("Frame")
@@ -149,10 +169,16 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.next_frame_btn.clicked.connect(self.next_frame)
         self.frame_go_btn.clicked.connect(self.jump_to_frame)
         self.frame_input.returnPressed.connect(self.jump_to_frame)
+        self.fit_btn.clicked.connect(self.fit_view)
+        self.zoom_in_btn.clicked.connect(self.zoom_in)
+        self.zoom_out_btn.clicked.connect(self.zoom_out)
 
         controls.addWidget(self.prev_clip_btn)
         controls.addStretch(1)
         controls.addWidget(self.prev_frame_btn)
+        controls.addWidget(self.fit_btn)
+        controls.addWidget(self.zoom_out_btn)
+        controls.addWidget(self.zoom_in_btn)
         controls.addWidget(self.frame_input)
         controls.addWidget(self.frame_go_btn)
         controls.addWidget(self.next_frame_btn)
@@ -357,6 +383,17 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self._save_current_frame()
         self.frame_index += 1
         self._render_frame()
+
+    def fit_view(self) -> None:
+        self.frame_view.resetTransform()
+        self.frame_view.set_fit_mode(True)
+        self._render_frame()
+
+    def zoom_in(self) -> None:
+        self.frame_view.zoom(1.1)
+
+    def zoom_out(self) -> None:
+        self.frame_view.zoom(0.9)
 
     def jump_to_frame(self) -> None:
         text = self.frame_input.text().strip()
