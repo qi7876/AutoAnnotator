@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,6 +20,7 @@ class ClipEntry:
     sport: str
     event: str
     clip_id: str
+    task_name: str
     video_path: Path
     mot_path: Path
 
@@ -183,6 +185,52 @@ class MotEditorWindow(QtWidgets.QMainWindow):
 
     def _discover_clips(self) -> List[ClipEntry]:
         entries: List[ClipEntry] = []
+        project_root = self.output_root
+        if self.output_root.name == "temp" and self.output_root.parent.name == "output":
+            project_root = self.output_root.parents[2]
+
+        def safe_load_json(path: Path) -> Optional[dict]:
+            try:
+                return json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                return None
+
+        def resolve_mot_path(mot_ref: str, default_path: Path) -> Optional[Path]:
+            mot_path = Path(mot_ref)
+            if not mot_path.is_absolute():
+                mot_path = project_root / mot_path
+            if mot_path.exists():
+                return mot_path
+            if default_path.exists():
+                return default_path
+            return None
+
+        def clip_requires_mot(output_path: Path, default_mot_path: Path) -> List[tuple[str, Path]]:
+            mot_entries: List[tuple[str, Path]] = []
+            output = safe_load_json(output_path)
+            if output and isinstance(output, dict):
+                for ann in output.get("annotations", []) or []:
+                    if not isinstance(ann, dict):
+                        continue
+                    mot_ref = ann.get("mot_file")
+                    if not mot_ref and isinstance(ann.get("tracking_bboxes"), dict):
+                        mot_ref = ann["tracking_bboxes"].get("mot_file")
+                    task_name = ann.get("task_L2", "")
+                    default_path = default_mot_path
+                    if task_name:
+                        default_path = default_mot_path.with_name(
+                            f"{default_mot_path.stem}_{task_name}{default_mot_path.suffix}"
+                        )
+                    if mot_ref:
+                        mot_path = resolve_mot_path(str(mot_ref), default_path)
+                    elif ann.get("tracking_bboxes"):
+                        mot_path = resolve_mot_path("", default_path)
+                    else:
+                        mot_path = None
+                    if mot_path is not None:
+                        mot_entries.append((task_name or "tracking", mot_path))
+            return mot_entries
+
         for sport_dir in self.dataset_root.iterdir():
             if not sport_dir.is_dir():
                 continue
@@ -194,7 +242,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                     continue
                 for clip_path in clips_dir.glob("*.mp4"):
                     clip_id = clip_path.stem
-                    mot_path = (
+                    default_mot_path = (
                         self.output_root
                         / sport_dir.name
                         / event_dir.name
@@ -202,16 +250,35 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                         / "mot"
                         / f"{clip_id}.txt"
                     )
-                    entries.append(
-                        ClipEntry(
-                            sport_dir.name,
-                            event_dir.name,
-                            clip_id,
-                            clip_path,
-                            mot_path,
-                        )
+                    output_path = (
+                        self.output_root
+                        / sport_dir.name
+                        / event_dir.name
+                        / "clips"
+                        / f"{clip_id}.json"
                     )
-        entries.sort(key=lambda e: (e.sport, e.event, int(e.clip_id) if e.clip_id.isdigit() else e.clip_id))
+                    mot_entries = clip_requires_mot(output_path, default_mot_path)
+                    if not mot_entries:
+                        continue
+                    for task_name, mot_path in mot_entries:
+                        entries.append(
+                            ClipEntry(
+                                sport_dir.name,
+                                event_dir.name,
+                                clip_id,
+                                task_name,
+                                clip_path,
+                                mot_path,
+                            )
+                        )
+        entries.sort(
+            key=lambda e: (
+                e.sport,
+                e.event,
+                int(e.clip_id) if e.clip_id.isdigit() else e.clip_id,
+                e.task_name,
+            )
+        )
         return entries
 
     def _load_clip(self, clip: ClipEntry) -> None:
@@ -231,7 +298,10 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             self.frame_index = max(1, min(self.frame_index, self.total_frames))
             self.log("No MOT boxes found for this clip.")
         self.frame_input.setValidator(QtGui.QIntValidator(1, self.total_frames))
-        self.log(f"Loaded clip {clip.sport}/{clip.event}/{clip.clip_id} ({self.total_frames} frames)")
+        self.log(
+            f"Loaded clip {clip.sport}/{clip.event}/{clip.clip_id} "
+            f"[{clip.task_name}] ({self.total_frames} frames)"
+        )
         self._render_frame()
 
     def _save_current_frame(self) -> None:
@@ -263,6 +333,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.frame_view.set_frame(image, boxes)
         self.statusBar().showMessage(
             f"Clip {self.clip_entries[self.clip_index].clip_id} "
+            f"[{self.clip_entries[self.clip_index].task_name}] "
             f"Frame {self.frame_index}/{self.total_frames}"
         )
 

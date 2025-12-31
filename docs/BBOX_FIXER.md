@@ -33,7 +33,7 @@ uv run python scripts/bbox_fixer.py
 ## 数据与文件格式
 
 - 视频：`data/Dataset/{sport}/{event}/clips/{clip_id}.mp4`
-- MOT：`data/output/temp/{sport}/{event}/clips/mot/{clip_id}.txt`
+- MOT：`data/output/temp/{sport}/{event}/clips/mot/{clip_id}_{task_name}.txt`
 - MOTChallenge 2D 格式：
   ```
   <frame>, <id>, <bb_left>, <bb_top>, <bb_width>, <bb_height>, <conf>, <x>, <y>, <z>
@@ -70,5 +70,7 @@ data/bbox_fixer_state.json
 
 ## 注意事项
 
-- 若某 clip 没有 MOT 文件，将自动创建空文件
+- 工具只加载已有标注里包含 mot_file 或 tracking_bboxes 的 clip
+- 根据 mot_file 指向的文件是否存在决定是否加载
+- 命名规则：`{clip_id}_{task_name}.txt`
 - MOT 写入为原子写：先写入 `.tmp` 再覆盖

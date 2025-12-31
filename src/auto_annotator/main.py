@@ -215,7 +215,8 @@ def _maybe_write_tracking_mot(
         mot_dir = output_dir / "mot"
     mot_dir.mkdir(parents=True, exist_ok=True)
 
-    mot_path = mot_dir / f"{segment_metadata.id}.txt"
+    task_name = annotation.get("task_L2", "tracking")
+    mot_path = mot_dir / f"{segment_metadata.id}_{task_name}.txt"
     mot_path.write_text("\n".join(mot_rows) + "\n", encoding="utf-8")
 
     try:
