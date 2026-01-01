@@ -48,7 +48,7 @@ uv run python scripts/bbox_fixer.py
 - **编辑框**：拖动左上角/右下角控制点
 - **缩放**：Fit/Zoom+/Zoom- 按钮
 - **保存时机**：
-  - 切换帧/切换 clip 时自动保存
+  - 切换 clip 时自动保存
   - 关闭窗口时自动保存
 
 ## 状态恢复

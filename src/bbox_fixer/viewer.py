@@ -31,11 +31,11 @@ class HandleItem(QtWidgets.QGraphicsEllipseItem):
         self.corner = corner
         self.setBrush(QtGui.QBrush(QtGui.QColor(255, 255, 255)))
         self.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0), 1))
-        self.setFlag(QtWidgets.QGraphicsItem.ItemIsMovable, True)
-        self.setFlag(QtWidgets.QGraphicsItem.ItemSendsGeometryChanges, True)
+        self.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
+        self.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
 
     def itemChange(self, change, value):
-        if change == QtWidgets.QGraphicsItem.ItemPositionHasChanged:
+        if change == QtWidgets.QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
             parent = self.parentItem()
             if isinstance(parent, BoxItem):
                 parent.update_from_handles()
@@ -72,7 +72,7 @@ class BoxItem(QtWidgets.QGraphicsRectItem):
         self.box.height = bottom - top
 
     def itemChange(self, change, value):
-        if change == QtWidgets.QGraphicsItem.ItemPositionHasChanged:
+        if change == QtWidgets.QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
             self._sync_handles()
         return super().itemChange(change, value)
 
@@ -81,9 +81,9 @@ class FrameView(QtWidgets.QGraphicsView):
     def __init__(self):
         super().__init__()
         self.setScene(QtWidgets.QGraphicsScene())
-        self.setRenderHints(QtGui.QPainter.Antialiasing)
-        self.setAlignment(QtCore.Qt.AlignCenter)
-        self.setFocusPolicy(QtCore.Qt.StrongFocus)
+        self.setRenderHints(QtGui.QPainter.RenderHint.Antialiasing)
+        self.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self._pixmap_item: Optional[QtWidgets.QGraphicsPixmapItem] = None
         self.box_items: List[BoxItem] = []
         self._fit_to_view = True
@@ -100,7 +100,7 @@ class FrameView(QtWidgets.QGraphicsView):
             self.box_items.append(item)
         self.scene().setSceneRect(pixmap.rect())
         if self._fit_to_view:
-            self.fitInView(self.sceneRect(), QtCore.Qt.KeepAspectRatio)
+            self.fitInView(self.sceneRect(), QtCore.Qt.AspectRatioMode.KeepAspectRatio)
 
     def sync_boxes(self) -> List[MotBox]:
         for item in self.box_items:
@@ -110,7 +110,7 @@ class FrameView(QtWidgets.QGraphicsView):
     def set_fit_mode(self, fit: bool) -> None:
         self._fit_to_view = fit
         if self._pixmap_item and fit:
-            self.fitInView(self.sceneRect(), QtCore.Qt.KeepAspectRatio)
+            self.fitInView(self.sceneRect(), QtCore.Qt.AspectRatioMode.KeepAspectRatio)
 
     def zoom(self, factor: float) -> None:
         self._fit_to_view = False
@@ -119,7 +119,7 @@ class FrameView(QtWidgets.QGraphicsView):
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         super().resizeEvent(event)
         if self._fit_to_view:
-            self.fitInView(self.sceneRect(), QtCore.Qt.KeepAspectRatio)
+            self.fitInView(self.sceneRect(), QtCore.Qt.AspectRatioMode.KeepAspectRatio)
 
 
 class MotEditorWindow(QtWidgets.QMainWindow):
@@ -195,22 +195,23 @@ class MotEditorWindow(QtWidgets.QMainWindow):
 
         layout.addLayout(controls)
         self.setCentralWidget(central)
-        self.setFocusPolicy(QtCore.Qt.StrongFocus)
+        self.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self.frame_view.setFocus()
 
     def log(self, message: str) -> None:
         self.log_box.append(message)
 
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
-        if event.key() == QtCore.Qt.Key_Left:
+        if event.key() == QtCore.Qt.Key.Key_Left:
             self.prev_frame()
-        elif event.key() == QtCore.Qt.Key_Right:
+        elif event.key() == QtCore.Qt.Key.Key_Right:
             self.next_frame()
         else:
             super().keyPressEvent(event)
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
-        self._save_current_frame()
+        self._capture_current_frame()
+        self._save_current_clip()
         self._save_state()
         event.accept()
 
@@ -342,11 +343,19 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             self.video_cap.release()
         self.video_cap = cv2.VideoCapture(str(clip.video_path))
         self.total_frames = int(self.video_cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
+        self._last_empty_notice = None
         self.frame_index = 1
         self.store = MotStore.load(clip.mot_path)
         if self.store.frames:
             first_frame = min(self.store.frames.keys())
-            self.frame_index = first_frame
+            if 1 <= first_frame <= self.total_frames:
+                self.frame_index = first_frame
+            else:
+                self.frame_index = max(1, min(first_frame, self.total_frames))
+                self.log(
+                    f"MOT frame {first_frame} out of range; "
+                    f"clamped to {self.frame_index}."
+                )
         else:
             self.frame_index = max(1, min(self.frame_index, self.total_frames))
             self.log("No MOT boxes found for this clip.")
@@ -357,7 +366,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         )
         self._render_frame()
 
-    def _save_current_frame(self) -> None:
+    def _capture_current_frame(self) -> None:
         if not self.clip_entries or self.video_cap is None:
             return
         boxes = self.frame_view.sync_boxes()
@@ -365,6 +374,10 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         for box in boxes:
             box.frame = current_frame
         self.store.set_frame(current_frame, boxes)
+
+    def _save_current_clip(self) -> None:
+        if not self.clip_entries:
+            return
         current_clip = self.clip_entries[self.clip_index]
         self.store.save(current_clip.mot_path)
 
@@ -378,7 +391,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             return
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, _ = frame_rgb.shape
-        image = QtGui.QImage(frame_rgb.data, w, h, 3 * w, QtGui.QImage.Format_RGB888)
+        image = QtGui.QImage(frame_rgb.data, w, h, 3 * w, QtGui.QImage.Format.Format_RGB888)
         boxes = self.store.get_frame(self.frame_index)
         if not boxes and self._last_empty_notice != self.frame_index:
             self.log(f"No boxes for frame {self.frame_index}.")
@@ -393,14 +406,14 @@ class MotEditorWindow(QtWidgets.QMainWindow):
     def prev_frame(self) -> None:
         if self.frame_index <= 1:
             return
-        self._save_current_frame()
+        self._capture_current_frame()
         self.frame_index -= 1
         self._render_frame()
 
     def next_frame(self) -> None:
         if self.frame_index >= self.total_frames:
             return
-        self._save_current_frame()
+        self._capture_current_frame()
         self.frame_index += 1
         self._render_frame()
 
@@ -427,21 +440,23 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         if target < 1 or target > self.total_frames:
             self.log(f"Frame {target} out of range (1-{self.total_frames}).")
             return
-        self._save_current_frame()
+        self._capture_current_frame()
         self.frame_index = target
         self._render_frame()
 
     def prev_clip(self) -> None:
         if self.clip_index <= 0:
             return
-        self._save_current_frame()
+        self._capture_current_frame()
+        self._save_current_clip()
         self.clip_index -= 1
         self._load_clip(self.clip_entries[self.clip_index])
 
     def next_clip(self) -> None:
         if self.clip_index >= len(self.clip_entries) - 1:
             return
-        self._save_current_frame()
+        self._capture_current_frame()
+        self._save_current_clip()
         self.clip_index += 1
         self._load_clip(self.clip_entries[self.clip_index])
 
