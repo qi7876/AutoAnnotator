@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
-import cv2
 import decord
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -139,7 +138,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.frame_index = max(1, self.state.frame_index)
 
         self.store = MotStore()
-        self.video_cap: Optional[cv2.VideoCapture] = None
+        self.video_reader: Optional[decord.VideoReader] = None
         self.total_frames = 1
         self._last_empty_notice: Optional[int] = None
 
@@ -224,64 +223,26 @@ class MotEditorWindow(QtWidgets.QMainWindow):
     def _discover_clips(self) -> List[ClipEntry]:
         entries: List[ClipEntry] = []
         seen_keys: set[tuple[str, str, str, str]] = set()
-        project_root = self.output_root
-        if self.output_root.name == "output" and self.output_root.parent.name == "data":
-            project_root = self.output_root.parent.parent
-
         def safe_load_json(path: Path) -> Optional[dict]:
             try:
                 return json.loads(path.read_text(encoding="utf-8"))
             except Exception:
                 return None
 
-        def resolve_mot_path(mot_ref: str, default_path: Path) -> Optional[Path]:
-            if mot_ref:
-                mot_path = Path(mot_ref)
-                if not mot_path.is_absolute():
-                    candidates = [project_root / mot_path, self.output_root / mot_path]
-                    for candidate in candidates:
-                        if candidate.exists():
-                            return candidate
-                if mot_path.exists():
-                    return mot_path
-            if default_path.exists():
-                return default_path
-            return None
-
-        def clip_requires_mot(output_path: Path, default_mot_path: Path, clip_id: str) -> List[tuple[str, Path]]:
+        def clip_requires_mot(output_path: Path) -> List[tuple[str, Path]]:
             mot_entries: List[tuple[str, Path]] = []
             output = safe_load_json(output_path)
             if output and isinstance(output, dict):
                 for ann in output.get("annotations", []) or []:
                     if not isinstance(ann, dict):
                         continue
-                    mot_ref = ann.get("mot_file")
-                    if not mot_ref and isinstance(ann.get("tracking_bboxes"), dict):
-                        mot_ref = ann["tracking_bboxes"].get("mot_file")
+                    tracking = ann.get("tracking_bboxes")
+                    if not isinstance(tracking, dict):
+                        continue
+                    mot_ref = tracking.get("mot_file")
                     task_name = ann.get("task_L2", "")
-                    default_path = default_mot_path
-                    if task_name:
-                        default_path = default_mot_path.with_name(
-                            f"{default_mot_path.stem}_{task_name}{default_mot_path.suffix}"
-                        )
                     if mot_ref:
-                        mot_path = resolve_mot_path(str(mot_ref), default_path)
-                        if (
-                            mot_path is not None
-                            and task_name
-                            and f"_{task_name}" not in mot_path.stem
-                            and default_path.exists()
-                        ):
-                            mot_path = default_path
-                    elif ann.get("tracking_bboxes"):
-                        mot_path = resolve_mot_path("", default_path)
-                    else:
-                        mot_path = None
-                    if mot_path is not None:
-                        # guard: mot path should belong to this clip if possible
-                        if clip_id not in Path(mot_path).stem and default_path.exists():
-                            mot_path = default_path
-                        mot_entries.append((task_name or "tracking", mot_path))
+                        mot_entries.append((task_name or "tracking", Path(str(mot_ref))))
             return mot_entries
 
         for sport_dir in self.dataset_root.iterdir():
@@ -295,14 +256,6 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                     continue
                 for clip_path in clips_dir.glob("*.mp4"):
                     clip_id = clip_path.stem
-                    default_mot_path = (
-                        self.output_root
-                        / sport_dir.name
-                        / event_dir.name
-                        / "clips"
-                        / "mot"
-                        / f"{clip_id}.txt"
-                    )
                     output_path = (
                         self.output_root
                         / sport_dir.name
@@ -310,7 +263,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                         / "clips"
                         / f"{clip_id}.json"
                     )
-                    mot_entries = clip_requires_mot(output_path, default_mot_path, clip_id)
+                    mot_entries = clip_requires_mot(output_path)
                     if not mot_entries:
                         continue
                     for task_name, mot_path in mot_entries:
@@ -340,10 +293,12 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         return entries
 
     def _load_clip(self, clip: ClipEntry) -> None:
-        if self.video_cap:
-            self.video_cap.release()
-        self.video_cap = cv2.VideoCapture(str(clip.video_path))
-        self.total_frames = self._get_total_frames(clip.video_path)
+        self.video_reader = None
+        try:
+            self.video_reader = decord.VideoReader(str(clip.video_path), ctx=decord.cpu(0))
+        except Exception as exc:
+            self.log(f"Failed to open video with decord: {exc}")
+        self.total_frames = max(1, len(self.video_reader)) if self.video_reader else 1
         self._last_empty_notice = None
         self.frame_index = 1
         self.store = MotStore.load(clip.mot_path)
@@ -368,7 +323,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self._render_frame()
 
     def _capture_current_frame(self) -> None:
-        if not self.clip_entries or self.video_cap is None:
+        if not self.clip_entries:
             return
         boxes = self.frame_view.sync_boxes()
         current_frame = self.frame_index
@@ -383,10 +338,10 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.store.save(current_clip.mot_path)
 
     def _render_frame(self) -> None:
-        if not self.video_cap:
+        if not self.video_reader:
             return
         current_clip = self.clip_entries[self.clip_index]
-        frame = self._read_frame(current_clip.video_path, self.frame_index)
+        frame = self._read_frame(self.frame_index)
         if frame is None:
             self.log("Failed to read frame.")
             self.frame_view.scene().clear()
@@ -396,7 +351,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                 f"Frame {self.frame_index}/{self.total_frames} (read failed)"
             )
             return
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        frame_rgb = frame
         h, w, _ = frame_rgb.shape
         image = QtGui.QImage(frame_rgb.data, w, h, 3 * w, QtGui.QImage.Format.Format_RGB888)
         boxes = self.store.get_frame(self.frame_index)
@@ -410,28 +365,14 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             f"Frame {self.frame_index}/{self.total_frames}"
         )
 
-    def _get_total_frames(self, video_path: Path) -> int:
-        try:
-            reader = decord.VideoReader(str(video_path), ctx=decord.cpu(0))
-            return max(1, len(reader))
-        except Exception as exc:
-            fallback = int(self.video_cap.get(cv2.CAP_PROP_FRAME_COUNT)) if self.video_cap else 0
-            if fallback <= 0:
-                fallback = 1
-            self.log(f"Decord frame count failed: {exc}. Using OpenCV fallback.")
-            return fallback
-
-    def _read_frame(self, video_path: Path, frame_index: int) -> Optional[cv2.Mat]:
-        if not self.video_cap:
+    def _read_frame(self, frame_index: int):
+        if not self.video_reader:
             return None
         target = max(1, min(frame_index, self.total_frames))
-        # Sequential read to target frame.
-        self.video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-        for _ in range(target):
-            ok, frame = self.video_cap.read()
-            if not ok:
-                return None
-        return frame
+        try:
+            return self.video_reader[target - 1].asnumpy()
+        except Exception:
+            return None
 
     def prev_frame(self) -> None:
         if self.frame_index <= 1:
