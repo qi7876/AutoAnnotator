@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import cv2
+import decord
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from .mot_io import MotBox, MotStore
@@ -342,7 +343,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         if self.video_cap:
             self.video_cap.release()
         self.video_cap = cv2.VideoCapture(str(clip.video_path))
-        self.total_frames = int(self.video_cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
+        self.total_frames = self._get_total_frames(clip.video_path)
         self._last_empty_notice = None
         self.frame_index = 1
         self.store = MotStore.load(clip.mot_path)
@@ -384,10 +385,16 @@ class MotEditorWindow(QtWidgets.QMainWindow):
     def _render_frame(self) -> None:
         if not self.video_cap:
             return
-        self.video_cap.set(cv2.CAP_PROP_POS_FRAMES, self.frame_index - 1)
-        ok, frame = self.video_cap.read()
-        if not ok:
+        current_clip = self.clip_entries[self.clip_index]
+        frame = self._read_frame(current_clip.video_path, self.frame_index)
+        if frame is None:
             self.log("Failed to read frame.")
+            self.frame_view.scene().clear()
+            self.frame_view.box_items = []
+            self.statusBar().showMessage(
+                f"Clip {current_clip.clip_id} [{current_clip.task_name}] "
+                f"Frame {self.frame_index}/{self.total_frames} (read failed)"
+            )
             return
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, _ = frame_rgb.shape
@@ -402,6 +409,29 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             f"[{self.clip_entries[self.clip_index].task_name}] "
             f"Frame {self.frame_index}/{self.total_frames}"
         )
+
+    def _get_total_frames(self, video_path: Path) -> int:
+        try:
+            reader = decord.VideoReader(str(video_path), ctx=decord.cpu(0))
+            return max(1, len(reader))
+        except Exception as exc:
+            fallback = int(self.video_cap.get(cv2.CAP_PROP_FRAME_COUNT)) if self.video_cap else 0
+            if fallback <= 0:
+                fallback = 1
+            self.log(f"Decord frame count failed: {exc}. Using OpenCV fallback.")
+            return fallback
+
+    def _read_frame(self, video_path: Path, frame_index: int) -> Optional[cv2.Mat]:
+        if not self.video_cap:
+            return None
+        target = max(1, min(frame_index, self.total_frames))
+        # Sequential read to target frame.
+        self.video_cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        for _ in range(target):
+            ok, frame = self.video_cap.read()
+            if not ok:
+                return None
+        return frame
 
     def prev_frame(self) -> None:
         if self.frame_index <= 1:
