@@ -298,7 +298,11 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             self.video_reader = decord.VideoReader(str(clip.video_path), ctx=decord.cpu(0))
         except Exception as exc:
             self.log(f"Failed to open video with decord: {exc}")
-        self.total_frames = max(1, len(self.video_reader)) if self.video_reader else 1
+        self.log(f"Loading MOT file: {clip.mot_path}")
+        if self.video_reader:
+            self.total_frames = max(1, self._count_frames(self.video_reader))
+        else:
+            self.total_frames = 1
         self._last_empty_notice = None
         self.frame_index = 1
         self.store = MotStore.load(clip.mot_path)
@@ -321,6 +325,12 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             f"[{clip.task_name}] ({self.total_frames} frames)"
         )
         self._render_frame()
+
+    def _count_frames(self, reader: decord.VideoReader) -> int:
+        count = 0
+        for _ in reader:
+            count += 1
+        return count
 
     def _capture_current_frame(self) -> None:
         if not self.clip_entries:
