@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -142,9 +141,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.video_reader: Optional[decord.VideoReader] = None
         self.total_frames = 1
         self._last_empty_notice: Optional[int] = None
-        self.frame_paths: List[Path] = []
 
-        self._clear_cache()
         self._build_ui()
         self._load_clip(self.clip_entries[self.clip_index])
 
@@ -302,8 +299,10 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         except Exception as exc:
             self.log(f"Failed to open video with decord: {exc}")
         self.log(f"Loading MOT file: {clip.mot_path}")
-        self.frame_paths = self._build_frame_cache(clip)
-        self.total_frames = max(1, len(self.frame_paths))
+        if self.video_reader:
+            self.total_frames = max(1, self._count_frames(self.video_reader))
+        else:
+            self.total_frames = 1
         self._last_empty_notice = None
         self.frame_index = 1
         self.store = MotStore.load(clip.mot_path)
@@ -327,37 +326,11 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         )
         self._render_frame()
 
-    def _clear_cache(self) -> None:
-        cache_root = self.dataset_root.parent / "bbox_fixer_cache"
-        if cache_root.exists():
-            shutil.rmtree(cache_root)
-
-    def _build_frame_cache(self, clip: ClipEntry) -> List[Path]:
-        cache_dir = (
-            self.dataset_root.parent
-            / "bbox_fixer_cache"
-            / clip.sport
-            / clip.event
-            / "clips"
-            / clip.clip_id
-        )
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        existing = sorted(cache_dir.glob("*.jpg"))
-        if existing:
-            return existing
-        if not self.video_reader:
-            return []
-        frame_paths: List[Path] = []
-        for index, frame in enumerate(self.video_reader):
-            frame_path = cache_dir / f"{index + 1:06d}.jpg"
-            frame_rgb = frame.asnumpy()
-            h, w, _ = frame_rgb.shape
-            image = QtGui.QImage(
-                frame_rgb.data, w, h, 3 * w, QtGui.QImage.Format.Format_RGB888
-            )
-            image.save(str(frame_path), "JPG")
-            frame_paths.append(frame_path)
-        return frame_paths
+    def _count_frames(self, reader: decord.VideoReader) -> int:
+        count = 0
+        for _ in reader:
+            count += 1
+        return count
 
     def _capture_current_frame(self) -> None:
         if not self.clip_entries:
@@ -375,13 +348,12 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.store.save(current_clip.mot_path)
 
     def _render_frame(self) -> None:
-        if not self.frame_paths:
+        if not self.video_reader:
             return
         current_clip = self.clip_entries[self.clip_index]
-        frame_path = self.frame_paths[self.frame_index - 1]
-        image = QtGui.QImage(str(frame_path))
-        if image.isNull():
-            self.log("Failed to read frame image.")
+        frame = self._read_frame(self.frame_index)
+        if frame is None:
+            self.log("Failed to read frame.")
             self.frame_view.scene().clear()
             self.frame_view.box_items = []
             self.statusBar().showMessage(
@@ -389,6 +361,9 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                 f"Frame {self.frame_index}/{self.total_frames} (read failed)"
             )
             return
+        frame_rgb = frame
+        h, w, _ = frame_rgb.shape
+        image = QtGui.QImage(frame_rgb.data, w, h, 3 * w, QtGui.QImage.Format.Format_RGB888)
         boxes = self.store.get_frame(self.frame_index)
         if not boxes and self._last_empty_notice != self.frame_index:
             self.log(f"No boxes for frame {self.frame_index}.")
@@ -399,6 +374,15 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             f"[{self.clip_entries[self.clip_index].task_name}] "
             f"Frame {self.frame_index}/{self.total_frames}"
         )
+
+    def _read_frame(self, frame_index: int):
+        if not self.video_reader:
+            return None
+        target = max(1, min(frame_index, self.total_frames))
+        try:
+            return self.video_reader[target - 1].asnumpy()
+        except Exception:
+            return None
 
     def prev_frame(self) -> None:
         if self.frame_index <= 1:
@@ -447,7 +431,6 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self._capture_current_frame()
         self._save_current_clip()
         self.clip_index -= 1
-        self._clear_cache()
         self._load_clip(self.clip_entries[self.clip_index])
 
     def next_clip(self) -> None:
@@ -456,7 +439,6 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self._capture_current_frame()
         self._save_current_clip()
         self.clip_index += 1
-        self._clear_cache()
         self._load_clip(self.clip_entries[self.clip_index])
 
 
