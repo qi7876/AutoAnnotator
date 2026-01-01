@@ -8,6 +8,7 @@ wheels/
 Dataset/
 output/
 data/
+.claude
 
 # Virtual environments
 .venv
