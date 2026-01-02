@@ -14,6 +14,16 @@ from .tracker import ObjectTracker
 logger = logging.getLogger(__name__)
 
 
+def _cleanup_temp_frame(frame_path: Optional[Path], media_path: Path) -> None:
+    if not frame_path or frame_path == media_path:
+        return
+    try:
+        if frame_path.exists():
+            frame_path.unlink()
+    except OSError as exc:
+        logger.warning(f"Failed to delete temp frame {frame_path}: {exc}")
+
+
 def _ensure_clip_frame_range(frame: Any, segment_metadata: ClipMetadata, field: str) -> int:
     frame_int = int(frame)
     total = segment_metadata.info.total_frames
@@ -89,6 +99,7 @@ class ScoreboardSingleAnnotator(BaseAnnotator):
             if isinstance(bbox_description, str):
                 # Extract frame from video (or use single frame image)
                 timestamp_frame = result.get("timestamp_frame", 0)
+                temp_frame_path = None
                 if is_single_frame:
                     frame_path = media_path
                 else:
@@ -101,13 +112,17 @@ class ScoreboardSingleAnnotator(BaseAnnotator):
                         segment_metadata.get_video_path(dataset_root),
                         clip_frame
                     )
+                    temp_frame_path = frame_path
 
-                # Use bbox_annotator to generate actual bounding box
-                bbox = self.bbox_annotator.annotate_single_object(
-                    frame_path, bbox_description
-                )
-                result["bounding_box"] = bbox.to_list()
-                result.setdefault("_debug", {})["frame_path"] = str(frame_path)
+                try:
+                    # Use bbox_annotator to generate actual bounding box
+                    bbox = self.bbox_annotator.annotate_single_object(
+                        frame_path, bbox_description
+                    )
+                    result["bounding_box"] = bbox.to_list()
+                    result.setdefault("_debug", {})["frame_path"] = str(frame_path)
+                finally:
+                    _cleanup_temp_frame(temp_frame_path, media_path)
 
             # Add metadata
             result = self.add_metadata_fields(result)
@@ -219,6 +234,7 @@ class ObjectsSpatialRelationshipsAnnotator(BaseAnnotator):
             if isinstance(bbox_info, list) and bbox_info:
                 # Extract frame
                 timestamp_frame = result.get("timestamp_frame", 0)
+                temp_frame_path = None
                 if is_single_frame or is_image_file:
                     frame_path = media_path
                 else:
@@ -231,6 +247,7 @@ class ObjectsSpatialRelationshipsAnnotator(BaseAnnotator):
                         segment_metadata.get_video_path(dataset_root),
                         clip_frame
                     )
+                    temp_frame_path = frame_path
 
                 descriptions = []
                 labels = []
@@ -240,13 +257,16 @@ class ObjectsSpatialRelationshipsAnnotator(BaseAnnotator):
                         descriptions.append(obj.get("description", ""))
 
                 if any(desc for desc in descriptions):
-                    bboxes = self.bbox_annotator.annotate_multiple_objects(
-                        frame_path, descriptions
-                    )
-                    result["bounding_box"] = [
-                        {"label": labels[i], "box": bbox.to_list()}
-                        for i, bbox in enumerate(bboxes)
-                    ]
+                    try:
+                        bboxes = self.bbox_annotator.annotate_multiple_objects(
+                            frame_path, descriptions
+                        )
+                        result["bounding_box"] = [
+                            {"label": labels[i], "box": bbox.to_list()}
+                            for i, bbox in enumerate(bboxes)
+                        ]
+                    finally:
+                        _cleanup_temp_frame(temp_frame_path, media_path)
 
             # Add metadata
             result = self.add_metadata_fields(result)
@@ -315,25 +335,29 @@ class SpatialTemporalGroundingAnnotator(BaseAnnotator):
                     segment_metadata.get_video_path(dataset_root),
                     clip_start
                 )
+                temp_frame_path = frame_path
 
-                first_bbox = self.bbox_annotator.annotate_single_object(
-                    frame_path, first_frame_desc
-                )
+                try:
+                    first_bbox = self.bbox_annotator.annotate_single_object(
+                        frame_path, first_frame_desc
+                    )
 
-                first_bboxes_with_label = [{
-                    "bbox": first_bbox.to_list(),
-                    "label": first_frame_desc
-                }]
+                    first_bboxes_with_label = [{
+                        "bbox": first_bbox.to_list(),
+                        "label": first_frame_desc
+                    }]
 
-                tracking_result = self.tracker.track_from_first_bbox(
-                    segment_metadata.get_video_path(dataset_root),
-                    first_bboxes_with_label,
-                    clip_start,
-                    clip_end
-                )
+                    tracking_result = self.tracker.track_from_first_bbox(
+                        segment_metadata.get_video_path(dataset_root),
+                        first_bboxes_with_label,
+                        clip_start,
+                        clip_end
+                    )
 
-                result["first_bounding_box"] = first_bbox.to_list()
-                result["tracking_bboxes"] = tracking_result.to_dict()
+                    result["first_bounding_box"] = first_bbox.to_list()
+                    result["tracking_bboxes"] = tracking_result.to_dict()
+                finally:
+                    _cleanup_temp_frame(temp_frame_path, segment_metadata.get_video_path(dataset_root))
 
             result.pop("first_frame_description", None)
 
@@ -401,21 +425,25 @@ class ContinuousActionsCaptionAnnotator(BaseAnnotator):
                     segment_metadata.get_video_path(dataset_root),
                     clip_start
                 )
-                first_bbox = self.bbox_annotator.annotate_single_object(
-                    frame_path, first_frame_desc
-                )
-                first_bboxes_with_label = [{
-                    "bbox": first_bbox.to_list(),
-                    "label": first_frame_desc
-                }]
-                tracking_result = self.tracker.track_from_first_bbox(
-                    segment_metadata.get_video_path(dataset_root),
-                    first_bboxes_with_label,
-                    clip_start,
-                    clip_end
-                )
-                result["first_bounding_box"] = first_bbox.to_list()
-                result["tracking_bboxes"] = tracking_result.to_dict()
+                temp_frame_path = frame_path
+                try:
+                    first_bbox = self.bbox_annotator.annotate_single_object(
+                        frame_path, first_frame_desc
+                    )
+                    first_bboxes_with_label = [{
+                        "bbox": first_bbox.to_list(),
+                        "label": first_frame_desc
+                    }]
+                    tracking_result = self.tracker.track_from_first_bbox(
+                        segment_metadata.get_video_path(dataset_root),
+                        first_bboxes_with_label,
+                        clip_start,
+                        clip_end
+                    )
+                    result["first_bounding_box"] = first_bbox.to_list()
+                    result["tracking_bboxes"] = tracking_result.to_dict()
+                finally:
+                    _cleanup_temp_frame(temp_frame_path, segment_metadata.get_video_path(dataset_root))
 
             result.pop("first_frame_description", None)
 
@@ -545,24 +573,27 @@ class ObjectTrackingAnnotator(BaseAnnotator):
                     segment_metadata.get_video_path(dataset_root),
                     clip_start
                 )
+                temp_frame_path = frame_path
+                try:
+                    first_bbox = self.bbox_annotator.annotate_single_object(
+                        frame_path, first_frame_desc
+                    )
+                    first_bboxes_with_label = [{
+                        "bbox": first_bbox.to_list(),
+                        "label": first_frame_desc
+                    }]
 
-                first_bbox = self.bbox_annotator.annotate_single_object(
-                    frame_path, first_frame_desc
-                )
-                first_bboxes_with_label = [{
-                    "bbox": first_bbox.to_list(),
-                    "label": first_frame_desc
-                }]
-
-                tracking_result = self.tracker.track_from_first_bbox(
-                    segment_metadata.get_video_path(),
-                    first_bboxes_with_label,
-                    clip_start,
-                    clip_end
-                )
-                # Handle tracking result (now returns TrackingResult object)
-                result["first_bounding_box"] = first_bbox.to_list()
-                result["tracking_bboxes"] = tracking_result.to_dict()
+                    tracking_result = self.tracker.track_from_first_bbox(
+                        segment_metadata.get_video_path(),
+                        first_bboxes_with_label,
+                        clip_start,
+                        clip_end
+                    )
+                    # Handle tracking result (now returns TrackingResult object)
+                    result["first_bounding_box"] = first_bbox.to_list()
+                    result["tracking_bboxes"] = tracking_result.to_dict()
+                finally:
+                    _cleanup_temp_frame(temp_frame_path, segment_metadata.get_video_path(dataset_root))
 
             result.pop("first_frame_description", None)
 
