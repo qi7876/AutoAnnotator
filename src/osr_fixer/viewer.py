@@ -22,7 +22,7 @@ class OSREntry:
 
 class HandleItem(QtWidgets.QGraphicsEllipseItem):
     def __init__(self, parent: QtWidgets.QGraphicsItem, corner: str):
-        super().__init__(-6, -6, 12, 12, parent)
+        super().__init__(-8, -8, 16, 16, parent)
         self.corner = corner
         self.setBrush(QtGui.QBrush(QtGui.QColor(255, 255, 255)))
         self.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0), 1))
@@ -38,19 +38,22 @@ class HandleItem(QtWidgets.QGraphicsEllipseItem):
 
 
 class BoxItem(QtWidgets.QGraphicsRectItem):
-    def __init__(self, box: list[float]):
+    def __init__(self, box: list[float], label: str, color: QtGui.QColor):
         super().__init__()
         left, top, right, bottom = box
         self.setRect(QtCore.QRectF(left, top, right - left, bottom - top))
-        self.setPen(QtGui.QPen(QtGui.QColor(0, 255, 0), 2))
+        self.setPen(QtGui.QPen(color, 2))
         self.handle_tl = HandleItem(self, "tl")
         self.handle_br = HandleItem(self, "br")
+        self.label_item = QtWidgets.QGraphicsSimpleTextItem(label, self)
+        self.label_item.setBrush(QtGui.QBrush(color))
         self._sync_handles()
 
     def _sync_handles(self) -> None:
         rect = self.rect()
         self.handle_tl.setPos(rect.left(), rect.top())
         self.handle_br.setPos(rect.right(), rect.bottom())
+        self.label_item.setPos(rect.left() + 4, rect.top() + 4)
 
     def update_from_handles(self) -> None:
         tl = self.handle_tl.pos()
@@ -60,6 +63,10 @@ class BoxItem(QtWidgets.QGraphicsRectItem):
         right = max(tl.x(), br.x())
         bottom = max(tl.y(), br.y())
         self.setRect(QtCore.QRectF(left, top, right - left, bottom - top))
+
+    def update_label(self, label: str) -> None:
+        self.label_item.setText(label)
+        self._sync_handles()
 
     def to_box(self) -> list[float]:
         rect = self.rect()
@@ -77,14 +84,17 @@ class FrameView(QtWidgets.QGraphicsView):
         self.box_items: List[BoxItem] = []
         self._fit_to_view = True
 
-    def set_frame(self, image: QtGui.QImage, boxes: List[list[float]]):
+    def set_frame(self, image: QtGui.QImage, boxes: List[list[float]], labels: List[str]):
         self.scene().clear()
         pixmap = QtGui.QPixmap.fromImage(image)
         self._pixmap_item = self.scene().addPixmap(pixmap)
         self._pixmap_item.setZValue(0)
         self.box_items = []
-        for box in boxes:
-            item = BoxItem(box)
+        colors = [QtGui.QColor(0, 255, 0), QtGui.QColor(255, 165, 0)]
+        for idx, box in enumerate(boxes):
+            label = labels[idx] if idx < len(labels) else ""
+            color = colors[idx % len(colors)]
+            item = BoxItem(box, label, color)
             self.scene().addItem(item)
             self.box_items.append(item)
         self.scene().setSceneRect(pixmap.rect())
@@ -93,6 +103,11 @@ class FrameView(QtWidgets.QGraphicsView):
 
     def sync_boxes(self) -> List[list[float]]:
         return [item.to_box() for item in self.box_items]
+
+    def update_labels(self, labels: List[str]) -> None:
+        for idx, item in enumerate(self.box_items):
+            label = labels[idx] if idx < len(labels) else ""
+            item.update_label(label)
 
     def set_fit_mode(self, fit: bool) -> None:
         self._fit_to_view = fit
@@ -183,10 +198,12 @@ class OSREditor(QtWidgets.QMainWindow):
         qa_layout.addWidget(self.answer_edit)
 
         form = QtWidgets.QFormLayout()
+        labels_layout = QtWidgets.QHBoxLayout()
         self.label_edits: List[QtWidgets.QLineEdit] = [QtWidgets.QLineEdit(), QtWidgets.QLineEdit()]
+        labels_layout.addWidget(self.label_edits[0])
+        labels_layout.addWidget(self.label_edits[1])
         form.addRow("Q / A", qa_layout)
-        form.addRow("Label 1", self.label_edits[0])
-        form.addRow("Label 2", self.label_edits[1])
+        form.addRow("Labels", labels_layout)
         layout.addLayout(form)
 
         self.review_checkbox = QtWidgets.QCheckBox("Reviewed")
@@ -219,6 +236,8 @@ class OSREditor(QtWidgets.QMainWindow):
         self.zoom_in_btn.clicked.connect(self.zoom_in)
         self.zoom_out_btn.clicked.connect(self.zoom_out)
         self.save_btn.clicked.connect(self.save_entry)
+        self.label_edits[0].textChanged.connect(self._refresh_labels)
+        self.label_edits[1].textChanged.connect(self._refresh_labels)
 
         self.setCentralWidget(central)
 
@@ -276,7 +295,7 @@ class OSREditor(QtWidgets.QMainWindow):
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, _ = frame_rgb.shape
         image = QtGui.QImage(frame_rgb.data, w, h, 3 * w, QtGui.QImage.Format.Format_RGB888)
-        self.frame_view.set_frame(image, norm_boxes)
+        self.frame_view.set_frame(image, norm_boxes, labels)
         self.statusBar().showMessage(
             f"{entry.sport}/{entry.event}/frames/{entry.frame_id}"
         )
@@ -297,6 +316,10 @@ class OSREditor(QtWidgets.QMainWindow):
         self.annotation["question"] = self.question_edit.toPlainText()
         self.annotation["answer"] = self.answer_edit.toPlainText()
         self.annotation["reviewed"] = bool(self.review_checkbox.isChecked())
+
+    def _refresh_labels(self) -> None:
+        labels = [self.label_edits[0].text(), self.label_edits[1].text()]
+        self.frame_view.update_labels(labels)
 
     def save_entry(self) -> None:
         if not self.annotation:
