@@ -48,7 +48,7 @@ class BoxItem(QtWidgets.QGraphicsRectItem):
         self.label_item = QtWidgets.QGraphicsSimpleTextItem(label, self)
         self.label_item.setBrush(QtGui.QBrush(QtGui.QColor(255, 255, 255)))
         font = QtGui.QFont()
-        font.setPointSize(12)
+        font.setPointSize(16)
         font.setBold(True)
         self.label_item.setFont(font)
         self.label_item.setPen(QtGui.QPen(color, 1))
