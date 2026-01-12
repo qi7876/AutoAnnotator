@@ -174,12 +174,17 @@ class OSREditor(QtWidgets.QMainWindow):
         self.frame_view = FrameView()
         layout.addWidget(self.frame_view, stretch=1)
 
-        form = QtWidgets.QFormLayout()
+        qa_layout = QtWidgets.QHBoxLayout()
         self.question_edit = QtWidgets.QTextEdit()
+        self.question_edit.setFixedHeight(80)
         self.answer_edit = QtWidgets.QTextEdit()
+        self.answer_edit.setFixedHeight(80)
+        qa_layout.addWidget(self.question_edit)
+        qa_layout.addWidget(self.answer_edit)
+
+        form = QtWidgets.QFormLayout()
         self.label_edits: List[QtWidgets.QLineEdit] = [QtWidgets.QLineEdit(), QtWidgets.QLineEdit()]
-        form.addRow("Question", self.question_edit)
-        form.addRow("Answer", self.answer_edit)
+        form.addRow("Q / A", qa_layout)
         form.addRow("Label 1", self.label_edits[0])
         form.addRow("Label 2", self.label_edits[1])
         layout.addLayout(form)
