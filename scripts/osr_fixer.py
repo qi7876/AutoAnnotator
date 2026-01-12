@@ -2,7 +2,10 @@
 from pathlib import Path
 import sys
 
-from osr_fixer.viewer import run_app
+repo_root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(repo_root / "src"))
+
+from osr_fixer.viewer import run_app  # noqa: E402
 
 
 def main() -> None:
