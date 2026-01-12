@@ -77,8 +77,9 @@ class JSONUtils:
         """
         result = base_json.copy()
 
-        # Ensure annotations field exists
-        if "annotations" not in result:
+        # Ensure annotations field exists and is a list
+        annotations = result.get("annotations")
+        if not isinstance(annotations, list):
             result["annotations"] = []
 
         # Get next annotation ID

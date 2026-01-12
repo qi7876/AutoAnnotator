@@ -256,8 +256,8 @@ class ObjectsSpatialRelationshipsAnnotator(BaseAnnotator):
                         labels.append(obj.get("label", ""))
                         descriptions.append(obj.get("description", ""))
 
-                if any(desc for desc in descriptions):
-                    try:
+                try:
+                    if any(desc for desc in descriptions):
                         bboxes = self.bbox_annotator.annotate_multiple_objects(
                             frame_path, descriptions
                         )
@@ -265,8 +265,8 @@ class ObjectsSpatialRelationshipsAnnotator(BaseAnnotator):
                             {"label": labels[i], "box": bbox.to_list()}
                             for i, bbox in enumerate(bboxes)
                         ]
-                    finally:
-                        _cleanup_temp_frame(temp_frame_path, media_path)
+                finally:
+                    _cleanup_temp_frame(temp_frame_path, media_path)
 
             # Add metadata
             result = self.add_metadata_fields(result)

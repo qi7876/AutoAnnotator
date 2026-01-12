@@ -127,6 +127,8 @@ class BaseAnnotator(ABC):
         # annotation_id will be set during merging
         annotation["task_L1"] = self.get_task_l1()
         annotation["task_L2"] = self.task_name
+        # review flag for downstream QA tools
+        annotation.setdefault("reviewed", False)
 
         return annotation
 

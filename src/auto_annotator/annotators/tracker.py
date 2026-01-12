@@ -11,7 +11,9 @@ import sys
 import cv2
 import torch
 import gc
+import time
 import numpy as np
+import tempfile
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -188,6 +190,7 @@ class ObjectTracker:
         """
         logger.info(f"Starting tracking from frame {start_frame} to {end_frame}")
         logger.info(f"Tracking {len(first_bboxes_with_label)} objects")
+        logger.info(f"Tracking source: {video_path}")
         
         if not first_bboxes_with_label:
             logger.warning("No objects to track")
@@ -210,8 +213,17 @@ class ObjectTracker:
             return TrackingResult(video_path, start_frame, end_frame, fallback_results)
             
         tracking_results = []
-        
+        temp_video_path: Optional[Path] = None
+        tracking_video_path = video_path
+        tracking_start = start_frame
+        tracking_end = end_frame
+        frame_offset = 0
+
         try:
+            temp_video_path, tracking_video_path, tracking_start, tracking_end, frame_offset = (
+                self._maybe_build_tracking_clip(video_path, start_frame, end_frame)
+            )
+
             device = "cpu" if not torch.cuda.is_available() else "cuda"
 
             if self.model_path.exists():
@@ -228,9 +240,14 @@ class ObjectTracker:
                 raise FileNotFoundError(
                     f"Model checkpoint not found: {self.model_path}"
                 )
+            logger.info("Tracker model initialized")
             
             # Initialize video state
-            state = predictor.init_state(str(video_path), offload_video_to_cpu=True)
+            init_start = time.time()
+            logger.info("Tracker init_state start")
+            state = predictor.init_state(str(tracking_video_path), offload_video_to_cpu=True)
+            elapsed = time.time() - init_start
+            logger.info("Tracker video state initialized in %.2fs", elapsed)
             
             with torch.inference_mode(), torch.autocast("cuda", dtype=torch.float16, enabled=torch.cuda.is_available()):
                 # Add bounding box prompts for each object at start_frame
@@ -242,18 +259,19 @@ class ObjectTracker:
                     predictor.add_new_points_or_box(
                         state,
                         box=bbox_prompt,
-                        frame_idx=start_frame,
+                        frame_idx=tracking_start,
                         obj_id=obj_id
                     )
+                logger.info("Tracker prompts initialized")
                 
                 # Track through video frames
                 frame_results = {}  # frame_idx -> list of object bboxes
                 
                 for frame_idx, object_ids, masks in predictor.propagate_in_video(state):
                     # Only process frames within our range
-                    if frame_idx < start_frame:
+                    if frame_idx < tracking_start:
                         continue
-                    if frame_idx > end_frame:
+                    if frame_idx > tracking_end:
                         break
                         
                     frame_bboxes = []
@@ -280,7 +298,11 @@ class ObjectTracker:
                                 'label': first_bboxes_with_label[expected_obj_id]['label']
                             })
                     
-                    frame_results[frame_idx] = frame_bboxes
+                    frame_results[frame_idx + frame_offset] = frame_bboxes
+                logger.info(
+                    "Tracker propagation finished; frames=%d",
+                    len(frame_results)
+                )
                 
                 # Format results per object
                 for obj_id, bbox_data in enumerate(first_bboxes_with_label):
@@ -310,6 +332,7 @@ class ObjectTracker:
                 torch.cuda.empty_cache()
                 
             logger.info(f"Successfully tracked {len(tracking_results)} objects across {end_frame - start_frame + 1} frames")
+            logger.info("Tracking result assembled")
             return TrackingResult(video_path, start_frame, end_frame, tracking_results)
 
         except Exception as e:
@@ -328,6 +351,72 @@ class ObjectTracker:
                 fallback_results.append(fallback_obj)
             
             return TrackingResult(video_path, start_frame, end_frame, fallback_results)
+        finally:
+            if temp_video_path and temp_video_path.exists():
+                try:
+                    temp_video_path.unlink()
+                    logger.info(f"Removed temp tracking clip: {temp_video_path}")
+                except OSError as exc:
+                    logger.warning(f"Failed to remove temp clip {temp_video_path}: {exc}")
+
+    def _maybe_build_tracking_clip(
+        self,
+        video_path: Path,
+        start_frame: int,
+        end_frame: int
+    ) -> tuple[Optional[Path], Path, int, int, int]:
+        if end_frame < start_frame:
+            return None, video_path, start_frame, end_frame, 0
+        cap = cv2.VideoCapture(str(video_path))
+        if not cap.isOpened():
+            logger.warning(f"Cannot open video for cropping: {video_path}")
+            return None, video_path, start_frame, end_frame, 0
+        try:
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            if total_frames <= 0:
+                return None, video_path, start_frame, end_frame, 0
+            segment_len = end_frame - start_frame + 1
+            if segment_len >= total_frames:
+                return None, video_path, start_frame, end_frame, 0
+            fps = cap.get(cv2.CAP_PROP_FPS) or 10.0
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            if width <= 0 or height <= 0:
+                return None, video_path, start_frame, end_frame, 0
+
+            temp_file = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+            temp_path = Path(temp_file.name)
+            temp_file.close()
+
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            writer = cv2.VideoWriter(str(temp_path), fourcc, fps, (width, height))
+            if not writer.isOpened():
+                logger.warning(f"Cannot open VideoWriter for {temp_path}")
+                temp_path.unlink(missing_ok=True)
+                return None, video_path, start_frame, end_frame, 0
+
+            cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+            written = 0
+            for _ in range(segment_len):
+                ok, frame = cap.read()
+                if not ok:
+                    break
+                writer.write(frame)
+                written += 1
+            writer.release()
+
+            if written <= 0:
+                temp_path.unlink(missing_ok=True)
+                return None, video_path, start_frame, end_frame, 0
+
+            logger.info(
+                "Using temp tracking clip %s (frames=%d)",
+                temp_path,
+                written
+            )
+            return temp_path, temp_path, 0, written - 1, start_frame
+        finally:
+            cap.release()
     
     def _determine_model_cfg(self, model_path: str) -> str:
         """

@@ -110,28 +110,77 @@ def process_segment(
     output_path = output_dir / f"{segment_metadata.id}.json"
     existing_output = None
     completed_tasks: set[str] = set()
+    existing_annotations: list[dict] = []
 
     if output_path.exists():
         try:
             existing_output = JSONUtils.load_json(output_path)
-            for ann in existing_output.get("annotations", []):
-                task_name = ann.get("task_L2")
-                if task_name:
-                    completed_tasks.add(task_name)
+            existing_annotations = existing_output.get("annotations", [])
+            if not isinstance(existing_annotations, list):
+                existing_annotations = []
         except Exception as e:
             logger.warning(
                 f"Failed to load existing output {output_path}: {e}. "
                 "Re-annotating all tasks."
             )
 
+    available_tasks = set(TaskAnnotatorFactory.get_available_tasks())
+    requested_tasks = list(segment_metadata.tasks_to_annotate)
+    unknown_tasks = sorted(set(requested_tasks) - available_tasks)
+    if unknown_tasks:
+        logger.warning(
+            "Skipping unknown tasks for %s %s: %s",
+            segment_type,
+            segment_metadata.id,
+            ", ".join(unknown_tasks)
+        )
+
+    annotator_cache: dict[str, Any] = {}
+    for ann in existing_annotations:
+        if not isinstance(ann, dict):
+            continue
+        task_name = ann.get("task_L2")
+        if not task_name or task_name not in available_tasks:
+            continue
+        try:
+            annotator = annotator_cache.get(task_name)
+            if annotator is None:
+                annotator = TaskAnnotatorFactory.create_annotator(
+                    task_name=task_name,
+                    gemini_client=gemini_client,
+                    prompt_loader=prompt_loader,
+                    bbox_annotator=bbox_annotator,
+                    tracker=tracker
+                )
+                annotator_cache[task_name] = annotator
+            is_valid, error = annotator.validate_annotation(ann)
+            if is_valid:
+                completed_tasks.add(task_name)
+            else:
+                logger.warning(
+                    "Existing annotation for %s is invalid: %s",
+                    task_name,
+                    error
+                )
+        except Exception as exc:
+            logger.warning(
+                "Failed to validate existing annotation for %s: %s",
+                task_name,
+                exc
+            )
+
     tasks_to_run = [
         task_name
-        for task_name in segment_metadata.tasks_to_annotate
-        if task_name not in completed_tasks
+        for task_name in requested_tasks
+        if task_name in available_tasks and task_name not in completed_tasks
     ]
 
     if not tasks_to_run:
-        logger.info(f"All tasks already annotated for {segment_type}: {segment_metadata.id}")
+        logger.info(
+            "All known tasks already annotated for %s: %s",
+            segment_type,
+            segment_metadata.id
+        )
         return output_path
 
     # Collect annotations for missing tasks
@@ -169,6 +218,9 @@ def process_segment(
 
         except NotImplementedError as e:
             logger.warning(f"Task {task_name} requires unimplemented features: {e}")
+            continue
+        except ValueError as e:
+            logger.warning(f"Skipping unknown task {task_name}: {e}")
             continue
         except Exception as e:
             logger.error(f"Failed to annotate {task_name}: {e}", exc_info=True)
@@ -413,3 +465,4 @@ def process_segments_batch(
     logger.info(f"Failed: {failed}")
     logger.info(f"Total: {successful + failed}")
     logger.info("="*60)
+    logger.info("AutoAnnotator finished")

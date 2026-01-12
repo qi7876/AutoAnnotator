@@ -23,6 +23,8 @@ class ClipEntry:
     task_name: str
     video_path: Path
     mot_path: Path
+    json_path: Path
+    ann_index: int
 
 
 class HandleItem(QtWidgets.QGraphicsEllipseItem):
@@ -141,6 +143,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.video_reader: Optional[decord.VideoReader] = None
         self.total_frames = 1
         self._last_empty_notice: Optional[int] = None
+        self.reviewed = False
 
         self._build_ui()
         self._load_clip(self.clip_entries[self.clip_index])
@@ -157,6 +160,9 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.log_box.setReadOnly(True)
         self.log_box.setFixedHeight(120)
         layout.addWidget(self.log_box)
+
+        self.review_checkbox = QtWidgets.QCheckBox("Reviewed")
+        layout.addWidget(self.review_checkbox)
 
         controls = QtWidgets.QHBoxLayout()
         self.prev_clip_btn = QtWidgets.QPushButton("<< Prev Clip")
@@ -229,11 +235,11 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             except Exception:
                 return None
 
-        def clip_requires_mot(output_path: Path) -> List[tuple[str, Path]]:
-            mot_entries: List[tuple[str, Path]] = []
+        def clip_requires_mot(output_path: Path) -> List[tuple[str, Path, int]]:
+            mot_entries: List[tuple[str, Path, int]] = []
             output = safe_load_json(output_path)
             if output and isinstance(output, dict):
-                for ann in output.get("annotations", []) or []:
+                for idx, ann in enumerate(output.get("annotations", []) or []):
                     if not isinstance(ann, dict):
                         continue
                     tracking = ann.get("tracking_bboxes")
@@ -242,7 +248,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                     mot_ref = tracking.get("mot_file")
                     task_name = ann.get("task_L2", "")
                     if mot_ref:
-                        mot_entries.append((task_name or "tracking", Path(str(mot_ref))))
+                        mot_entries.append((task_name or "tracking", Path(str(mot_ref)), idx))
             return mot_entries
 
         for sport_dir in self.dataset_root.iterdir():
@@ -266,7 +272,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                     mot_entries = clip_requires_mot(output_path)
                     if not mot_entries:
                         continue
-                    for task_name, mot_path in mot_entries:
+                    for task_name, mot_path, ann_idx in mot_entries:
                         key = (sport_dir.name, event_dir.name, clip_id, task_name)
                         if key in seen_keys:
                             continue
@@ -278,6 +284,8 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                                 task_name,
                                 clip_path,
                                 mot_path,
+                                output_path,
+                                ann_idx,
                             )
                         )
                         seen_keys.add(key)
@@ -324,6 +332,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             f"Loaded clip {clip.sport}/{clip.event}/{clip.clip_id} "
             f"[{clip.task_name}] ({self.total_frames} frames)"
         )
+        self._load_review_flag(clip)
         self._render_frame()
 
     def _count_frames(self, reader: decord.VideoReader) -> int:
@@ -331,6 +340,37 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         for _ in reader:
             count += 1
         return count
+
+    def _load_review_flag(self, clip: ClipEntry) -> None:
+        try:
+            data = json.loads(clip.json_path.read_text(encoding="utf-8"))
+            anns = data.get("annotations", [])
+            if not isinstance(anns, list):
+                return
+            if clip.ann_index >= len(anns):
+                return
+            ann = anns[clip.ann_index]
+            if not isinstance(ann, dict):
+                return
+            self.reviewed = bool(ann.get("reviewed", False))
+            self.review_checkbox.setChecked(self.reviewed)
+        except Exception as exc:
+            self.log(f"Failed to load reviewed flag: {exc}")
+
+    def _save_review_flag(self, clip: ClipEntry) -> None:
+        try:
+            data = json.loads(clip.json_path.read_text(encoding="utf-8"))
+            anns = data.get("annotations", [])
+            if not isinstance(anns, list) or clip.ann_index >= len(anns):
+                return
+            ann = anns[clip.ann_index]
+            if not isinstance(ann, dict):
+                return
+            ann["reviewed"] = bool(self.review_checkbox.isChecked())
+            data["annotations"] = anns
+            clip.json_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        except Exception as exc:
+            self.log(f"Failed to save reviewed flag: {exc}")
 
     def _capture_current_frame(self) -> None:
         if not self.clip_entries:
@@ -340,12 +380,14 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         for box in boxes:
             box.frame = current_frame
         self.store.set_frame(current_frame, boxes)
+        self.reviewed = bool(self.review_checkbox.isChecked())
 
     def _save_current_clip(self) -> None:
         if not self.clip_entries:
             return
         current_clip = self.clip_entries[self.clip_index]
         self.store.save(current_clip.mot_path)
+        self._save_review_flag(current_clip)
 
     def _render_frame(self) -> None:
         if not self.video_reader:
