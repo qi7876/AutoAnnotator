@@ -41,7 +41,8 @@ class BoxItem(QtWidgets.QGraphicsRectItem):
     def __init__(self, box: list[float], label: str, color: QtGui.QColor):
         super().__init__()
         left, top, right, bottom = box
-        self.setRect(QtCore.QRectF(left, top, right - left, bottom - top))
+        self.setRect(QtCore.QRectF(0, 0, right - left, bottom - top))
+        self.setPos(left, top)
         self.setPen(QtGui.QPen(color, 3))
         self.handle_tl = HandleItem(self, "tl")
         self.handle_br = HandleItem(self, "br")
@@ -56,9 +57,9 @@ class BoxItem(QtWidgets.QGraphicsRectItem):
 
     def _sync_handles(self) -> None:
         rect = self.rect()
-        self.handle_tl.setPos(rect.left(), rect.top())
-        self.handle_br.setPos(rect.right(), rect.bottom())
-        self.label_item.setPos(rect.left(), rect.top() - 28)
+        self.handle_tl.setPos(0, 0)
+        self.handle_br.setPos(rect.width(), rect.height())
+        self.label_item.setPos(0, -28)
 
     def update_from_handles(self) -> None:
         tl = self.handle_tl.pos()
@@ -67,7 +68,8 @@ class BoxItem(QtWidgets.QGraphicsRectItem):
         top = min(tl.y(), br.y())
         right = max(tl.x(), br.x())
         bottom = max(tl.y(), br.y())
-        self.setRect(QtCore.QRectF(left, top, right - left, bottom - top))
+        self.setPos(self.pos() + QtCore.QPointF(left, top))
+        self.setRect(QtCore.QRectF(0, 0, right - left, bottom - top))
         self._sync_handles()
 
     def update_label(self, label: str) -> None:
@@ -76,7 +78,12 @@ class BoxItem(QtWidgets.QGraphicsRectItem):
 
     def to_box(self) -> list[float]:
         rect = self.rect()
-        return [rect.left(), rect.top(), rect.right(), rect.bottom()]
+        pos = self.pos()
+        left = pos.x() + rect.left()
+        top = pos.y() + rect.top()
+        right = pos.x() + rect.right()
+        bottom = pos.y() + rect.bottom()
+        return [left, top, right, bottom]
 
 
 class FrameView(QtWidgets.QGraphicsView):
