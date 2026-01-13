@@ -407,7 +407,7 @@ uv run python scripts/bbox_fixer.py
 
 ```bash
 uv run python -m pip install pyinstaller
-uv run pyinstaller --onefile --windowed scripts/bbox_fixer.py
+uv run pyinstaller --onefile --windowed --paths src --collect-submodules bbox_fixer scripts/bbox_fixer_app.py
 ```
 
 产物在 `dist/` 目录。
