@@ -390,7 +390,7 @@ python --version  # 应该是 3.10+
 启动 GUI：
 
 ```bash
-uv run python scripts/bbox_fixer.py
+uv run python scripts/bbox_fixer_cli.py
 ```
 
 默认读取：

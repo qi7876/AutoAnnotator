@@ -17,18 +17,18 @@ uv sync
 ## 启动
 
 ```bash
-uv run python scripts/bbox_fixer.py
+uv run python scripts/bbox_fixer_cli.py
 ```
 
 ## 默认读取路径
 
-当前路径在 `scripts/bbox_fixer.py` 中固定为：
+当前路径在 `scripts/bbox_fixer_cli.py` 中固定为：
 
 - 数据集：`data/Dataset`
 - MOT 输出：`data/output`
 - 状态保存：`data/bbox_fixer_state.json`
 
-如果你需要修改路径，请直接编辑 `scripts/bbox_fixer.py` 中的 `dataset_root` 与 `output_root`。
+如果你需要修改路径，请直接编辑 `scripts/bbox_fixer_cli.py` 中的 `dataset_root` 与 `output_root`。
 
 ## 数据与文件格式
 
