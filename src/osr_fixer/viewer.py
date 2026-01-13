@@ -51,7 +51,7 @@ class BoxItem(QtWidgets.QGraphicsRectItem):
         font.setPointSize(16)
         font.setBold(True)
         self.label_item.setFont(font)
-        self.label_item.setPen(QtGui.QPen(color, 1))
+        self.label_item.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0), 2))
         self._sync_handles()
 
     def _sync_handles(self) -> None:
