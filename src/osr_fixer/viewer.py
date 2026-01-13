@@ -49,7 +49,7 @@ class BoxItem(QtWidgets.QGraphicsRectItem):
         self.label_item.setBrush(QtGui.QBrush(QtGui.QColor(0, 0, 0)))
         font = QtGui.QFont()
         font.setPointSize(22)
-        font.setWeight(QtGui.QFont.Weight.ExtraBold)
+        font.setWeight(QtGui.QFont.Weight.Bold)
         self.label_item.setFont(font)
         self.label_item.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0), 0))
         self._sync_handles()
@@ -68,6 +68,7 @@ class BoxItem(QtWidgets.QGraphicsRectItem):
         right = max(tl.x(), br.x())
         bottom = max(tl.y(), br.y())
         self.setRect(QtCore.QRectF(left, top, right - left, bottom - top))
+        self._sync_handles()
 
     def update_label(self, label: str) -> None:
         self.label_item.setText(label)
