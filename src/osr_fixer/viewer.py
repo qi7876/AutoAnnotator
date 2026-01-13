@@ -61,7 +61,7 @@ class BoxItem(QtWidgets.QGraphicsRectItem):
         self.handle_tl.setPos(rect.left(), rect.top())
         self.handle_br.setPos(rect.right(), rect.bottom())
         self.is_updating_handles = False
-        self.label_item.setPos(rect.left(), rect.top() - 28)
+        self.label_item.setPos(rect.left(), rect.top() - 40)
 
     def update_from_handles(self) -> None:
         tl = self.handle_tl.pos()
