@@ -48,17 +48,17 @@ class BoxItem(QtWidgets.QGraphicsRectItem):
         self.label_item = QtWidgets.QGraphicsSimpleTextItem(label, self)
         self.label_item.setBrush(QtGui.QBrush(QtGui.QColor(255, 255, 255)))
         font = QtGui.QFont()
-        font.setPointSize(16)
-        font.setBold(True)
+        font.setPointSize(20)
+        font.setWeight(QtGui.QFont.Weight.Black)
         self.label_item.setFont(font)
-        self.label_item.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0), 2))
+        self.label_item.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0), 3))
         self._sync_handles()
 
     def _sync_handles(self) -> None:
         rect = self.rect()
         self.handle_tl.setPos(rect.left(), rect.top())
         self.handle_br.setPos(rect.right(), rect.bottom())
-        self.label_item.setPos(rect.left() + 4, rect.top() + 4)
+        self.label_item.setPos(rect.left(), rect.top() - 28)
 
     def update_from_handles(self) -> None:
         tl = self.handle_tl.pos()
