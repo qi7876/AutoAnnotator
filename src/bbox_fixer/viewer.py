@@ -34,7 +34,9 @@ class HandleItem(QtWidgets.QGraphicsEllipseItem):
         self.setBrush(QtGui.QBrush(QtGui.QColor(255, 255, 255)))
         self.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0), 1))
         self.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
-        self.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
+        self.setFlag(
+            QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True
+        )
 
     def itemChange(self, change, value):
         if change == QtWidgets.QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
@@ -89,6 +91,19 @@ class FrameView(QtWidgets.QGraphicsView):
         self._pixmap_item: Optional[QtWidgets.QGraphicsPixmapItem] = None
         self.box_items: List[BoxItem] = []
         self._fit_to_view = True
+
+    def wheelEvent(self, event: QtGui.QWheelEvent) -> None:
+        if event.modifiers() & QtCore.Qt.KeyboardModifier.ControlModifier:
+            delta = event.angleDelta().y()
+            if delta:
+                steps = delta / 120.0
+                base = 1.1
+                factor = base**steps if steps > 0 else (1.0 / base) ** (-steps)
+                self.zoom(factor)
+            event.accept()
+            return
+
+        super().wheelEvent(event)
 
     def set_frame(self, image: QtGui.QImage, boxes: List[MotBox]) -> None:
         self.scene().clear()
@@ -204,16 +219,23 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self.frame_view.setFocus()
 
+        self.prev_frame_shortcut = QtGui.QShortcut(QtGui.QKeySequence("A"), self)
+        self.prev_frame_shortcut.setContext(
+            QtCore.Qt.ShortcutContext.ApplicationShortcut
+        )
+        self.prev_frame_shortcut.activated.connect(self.prev_frame)
+
+        self.next_frame_shortcut = QtGui.QShortcut(QtGui.QKeySequence("D"), self)
+        self.next_frame_shortcut.setContext(
+            QtCore.Qt.ShortcutContext.ApplicationShortcut
+        )
+        self.next_frame_shortcut.activated.connect(self.next_frame)
+
     def log(self, message: str) -> None:
         self.log_box.append(message)
 
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
-        if event.key() == QtCore.Qt.Key.Key_Left:
-            self.prev_frame()
-        elif event.key() == QtCore.Qt.Key.Key_Right:
-            self.next_frame()
-        else:
-            super().keyPressEvent(event)
+        super().keyPressEvent(event)
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         self._capture_current_frame()
@@ -229,6 +251,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
     def _discover_clips(self) -> List[ClipEntry]:
         entries: List[ClipEntry] = []
         seen_keys: set[tuple[str, str, str, str]] = set()
+
         def safe_load_json(path: Path) -> Optional[dict]:
             try:
                 return json.loads(path.read_text(encoding="utf-8"))
@@ -248,7 +271,9 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                     mot_ref = tracking.get("mot_file")
                     task_name = ann.get("task_L2", "")
                     if mot_ref:
-                        mot_entries.append((task_name or "tracking", Path(str(mot_ref)), idx))
+                        mot_entries.append(
+                            (task_name or "tracking", Path(str(mot_ref)), idx)
+                        )
             return mot_entries
 
         for sport_dir in self.dataset_root.iterdir():
@@ -303,7 +328,9 @@ class MotEditorWindow(QtWidgets.QMainWindow):
     def _load_clip(self, clip: ClipEntry) -> None:
         self.video_reader = None
         try:
-            self.video_reader = decord.VideoReader(str(clip.video_path), ctx=decord.cpu(0))
+            self.video_reader = decord.VideoReader(
+                str(clip.video_path), ctx=decord.cpu(0)
+            )
         except Exception as exc:
             self.log(f"Failed to open video with decord: {exc}")
         self.log(f"Loading MOT file: {clip.mot_path}")
@@ -368,7 +395,9 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                 return
             ann["reviewed"] = bool(self.review_checkbox.isChecked())
             data["annotations"] = anns
-            clip.json_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            clip.json_path.write_text(
+                json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+            )
         except Exception as exc:
             self.log(f"Failed to save reviewed flag: {exc}")
 
@@ -405,7 +434,9 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             return
         frame_rgb = frame
         h, w, _ = frame_rgb.shape
-        image = QtGui.QImage(frame_rgb.data, w, h, 3 * w, QtGui.QImage.Format.Format_RGB888)
+        image = QtGui.QImage(
+            frame_rgb.data, w, h, 3 * w, QtGui.QImage.Format.Format_RGB888
+        )
         boxes = self.store.get_frame(self.frame_index)
         if not boxes and self._last_empty_notice != self.frame_index:
             self.log(f"No boxes for frame {self.frame_index}.")
