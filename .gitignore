@@ -9,6 +9,7 @@ Dataset/
 output/
 data/
 .claude
+*.spec
 
 # Virtual environments
 .venv
