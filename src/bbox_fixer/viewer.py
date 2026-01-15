@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
-import decord
+import cv2
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from .mot_io import MotBox, MotStore
@@ -25,6 +25,56 @@ class ClipEntry:
     mot_path: Path
     json_path: Path
     ann_index: int
+
+
+class OpenCVVideoReader:
+    def __init__(self, video_path: Path):
+        self.video_path = video_path
+        self._cap = cv2.VideoCapture(str(video_path))
+        if not self._cap.isOpened():
+            raise ValueError(f"Failed to open video: {video_path}")
+
+        frame_count = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        if frame_count <= 0:
+            tmp = cv2.VideoCapture(str(video_path))
+            if not tmp.isOpened():
+                raise ValueError(f"Failed to open video: {video_path}")
+            count = 0
+            while True:
+                ok = tmp.grab()
+                if not ok:
+                    break
+                count += 1
+            tmp.release()
+            frame_count = count
+
+        self.frame_count = max(1, frame_count)
+        self._last_index: int | None = None
+
+    def close(self) -> None:
+        if self._cap is not None:
+            self._cap.release()
+
+    def read_rgb(self, index: int):
+        if index < 0 or index >= self.frame_count:
+            return None
+
+        if self._last_index is None or index != self._last_index + 1:
+            self._cap.set(cv2.CAP_PROP_POS_FRAMES, index)
+
+        ok, frame_bgr = self._cap.read()
+        if not ok:
+            self._cap.release()
+            self._cap = cv2.VideoCapture(str(self.video_path))
+            if not self._cap.isOpened():
+                return None
+            self._cap.set(cv2.CAP_PROP_POS_FRAMES, index)
+            ok, frame_bgr = self._cap.read()
+            if not ok:
+                return None
+
+        self._last_index = index
+        return cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
 
 
 class HandleItem(QtWidgets.QGraphicsEllipseItem):
@@ -155,7 +205,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.frame_index = max(1, self.state.frame_index)
 
         self.store = MotStore()
-        self.video_reader: Optional[decord.VideoReader] = None
+        self.video_reader: Optional[OpenCVVideoReader] = None
         self.total_frames = 1
         self._last_empty_notice: Optional[int] = None
         self.reviewed = False
@@ -326,16 +376,16 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         return entries
 
     def _load_clip(self, clip: ClipEntry) -> None:
+        if self.video_reader is not None:
+            self.video_reader.close()
         self.video_reader = None
         try:
-            self.video_reader = decord.VideoReader(
-                str(clip.video_path), ctx=decord.cpu(0)
-            )
+            self.video_reader = OpenCVVideoReader(clip.video_path)
         except Exception as exc:
-            self.log(f"Failed to open video with decord: {exc}")
+            self.log(f"Failed to open video with OpenCV: {exc}")
         self.log(f"Loading MOT file: {clip.mot_path}")
         if self.video_reader:
-            self.total_frames = max(1, self._count_frames(self.video_reader))
+            self.total_frames = self.video_reader.frame_count
         else:
             self.total_frames = 1
         self._last_empty_notice = None
@@ -361,12 +411,6 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         )
         self._load_review_flag(clip)
         self._render_frame()
-
-    def _count_frames(self, reader: decord.VideoReader) -> int:
-        count = 0
-        for _ in reader:
-            count += 1
-        return count
 
     def _load_review_flag(self, clip: ClipEntry) -> None:
         try:
@@ -453,7 +497,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             return None
         target = max(1, min(frame_index, self.total_frames))
         try:
-            return self.video_reader[target - 1].asnumpy()
+            return self.video_reader.read_rgb(target - 1)
         except Exception:
             return None
 
