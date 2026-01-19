@@ -123,15 +123,27 @@ def audit_dataset(
         total_frames = _parse_int(info.get("total_frames"))
 
         tasks_raw = data.get("tasks_to_annotate")
-        if isinstance(tasks_raw, list):
-            tasks = tuple(
-                t
-                for t in (_normalize_task_name(item) for item in tasks_raw)
-                if t is not None
-            )
-        else:
+        if tasks_raw is None:
             tasks = ()
-            if tasks_raw is not None:
+            findings.append(
+                Finding(
+                    path=json_path,
+                    sport=sport,
+                    event=event,
+                    kind=kind,
+                    total_frames=total_frames,
+                    tasks_to_annotate=(),
+                    offending_tasks=(),
+                    reason="missing_tasks_to_annotate",
+                )
+            )
+        elif isinstance(tasks_raw, list):
+            has_non_string = any(not isinstance(item, str) for item in tasks_raw)
+            has_empty_string = any(
+                isinstance(item, str) and not item.strip() for item in tasks_raw
+            )
+
+            if has_non_string:
                 findings.append(
                     Finding(
                         path=json_path,
@@ -141,9 +153,57 @@ def audit_dataset(
                         total_frames=total_frames,
                         tasks_to_annotate=(),
                         offending_tasks=(),
-                        reason="tasks_to_annotate_not_a_list",
+                        reason="tasks_to_annotate_contains_non_string",
                     )
                 )
+
+            if has_empty_string:
+                findings.append(
+                    Finding(
+                        path=json_path,
+                        sport=sport,
+                        event=event,
+                        kind=kind,
+                        total_frames=total_frames,
+                        tasks_to_annotate=(),
+                        offending_tasks=(),
+                        reason="tasks_to_annotate_contains_empty_string",
+                    )
+                )
+
+            tasks = tuple(
+                t
+                for t in (_normalize_task_name(item) for item in tasks_raw)
+                if t is not None
+            )
+
+            if not tasks:
+                findings.append(
+                    Finding(
+                        path=json_path,
+                        sport=sport,
+                        event=event,
+                        kind=kind,
+                        total_frames=total_frames,
+                        tasks_to_annotate=(),
+                        offending_tasks=(),
+                        reason="empty_tasks_to_annotate",
+                    )
+                )
+        else:
+            tasks = ()
+            findings.append(
+                Finding(
+                    path=json_path,
+                    sport=sport,
+                    event=event,
+                    kind=kind,
+                    total_frames=total_frames,
+                    tasks_to_annotate=(),
+                    offending_tasks=(),
+                    reason="tasks_to_annotate_not_a_list",
+                )
+            )
 
         if kind == "frames" and total_frames not in (None, 1):
             findings.append(

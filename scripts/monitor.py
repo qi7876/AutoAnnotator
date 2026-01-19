@@ -8,8 +8,12 @@ from typing import Dict, Iterable, List
 import requests
 from dotenv import load_dotenv
 
-FEISHU_TOKEN_URL = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
-FEISHU_WRITE_URL = "https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{spreadsheet_token}/values"
+FEISHU_TOKEN_URL = (
+    "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
+)
+FEISHU_WRITE_URL = (
+    "https://open.feishu.cn/open-apis/sheets/v2/spreadsheets/{spreadsheet_token}/values"
+)
 
 TASKS = [
     "Object_Tracking",
@@ -29,17 +33,15 @@ TASKS = [
 
 logger = logging.getLogger(__name__)
 
+
 def get_tenant_access_token(app_id: str, app_secret: str) -> str:
-    headers = {
-        "Content-Type": "application/json; charset=utf-8"
-    }
+    headers = {"Content-Type": "application/json; charset=utf-8"}
 
-    payload = {
-        "app_id": app_id,
-        "app_secret": app_secret
-    }
+    payload = {"app_id": app_id, "app_secret": app_secret}
 
-    response = requests.post(FEISHU_TOKEN_URL, json=payload, headers=headers, timeout=10)
+    response = requests.post(
+        FEISHU_TOKEN_URL, json=payload, headers=headers, timeout=10
+    )
     response.raise_for_status()
 
     data = response.json()
@@ -110,7 +112,7 @@ def upload_stats_to_feishu(
     token: str,
     spreadsheet_token: str,
     sheet_id: str,
-    source: int
+    source: int,
 ) -> None:
     url = FEISHU_WRITE_URL.format(spreadsheet_token=spreadsheet_token)
     headers = {
@@ -139,25 +141,23 @@ if __name__ == "__main__":
         "--source",
         type=int,
         default=int(os.getenv("SOURCE", "1")),
-        help="Source 行号(1-8)，默认从 .env 读取 SOURCE"
+        help="Source 行号(1-8)，默认从 .env 读取 SOURCE",
     )
     parser.add_argument(
         "--spreadsheet-token",
         type=str,
         default=os.getenv("SPREADSHEET_TOKEN"),
-        help="电子表格 token，默认从 .env 读取 SPREADSHEET_TOKEN"
+        help="电子表格 token，默认从 .env 读取 SPREADSHEET_TOKEN",
     )
     parser.add_argument(
         "--sheet-id",
         type=str,
         default=os.getenv("SHEET_ID"),
-        help="工作表 ID，默认从 .env 读取 SHEET_ID"
+        help="工作表 ID，默认从 .env 读取 SHEET_ID",
     )
     parser.add_argument("--upload", action="store_true", help="上传统计结果到飞书")
     parser.add_argument(
-        "--dataset-root",
-        type=str,
-        default=os.getenv("DATASET_ROOT", "data/Dataset")
+        "--dataset-root", type=str, default=os.getenv("DATASET_ROOT", "data/Dataset")
     )
     args = parser.parse_args()
 

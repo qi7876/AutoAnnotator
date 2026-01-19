@@ -25,11 +25,16 @@ gemini:
 output:
   temp_dir: "data/output/"
 
+batch_processing:
+  num_workers: 4
+  enable_clips: false
+  enable_frames: true
+
 # Task configuration
 tasks:
   tracking:
-    tracker_backend: "local"  # local or api
-    model_path: "data/model/sam2.1_hiera_base_plus.pt"  # supports relative to project root
+    tracker_backend: "local" # local or api
+    model_path: "data/model/sam2.1_hiera_base_plus.pt" # supports relative to project root
     hf_model_id: "facebook/sam2.1-hiera-base-plus"
     auto_download: true
 

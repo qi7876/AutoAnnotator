@@ -13,7 +13,7 @@ from pathlib import Path
 class CopyStats:
     scanned_events: int = 0
     found: int = 0
-    copied: int = 0
+    transferred: int = 0
     skipped_exists: int = 0
     missing: int = 0
     failed: int = 0
@@ -50,6 +50,10 @@ def _copy_file(src: Path, dst: Path, *, mode: str, dry_run: bool) -> None:
         shutil.copy2(src, dst)
         return
 
+    if mode in ("move", "mv"):
+        shutil.move(str(src), str(dst))
+        return
+
     if mode == "hardlink":
         os.link(src, dst)
         return
@@ -73,6 +77,7 @@ def build_subset(
     sport: str | None,
     event: str | None,
     max_actions: int | None,
+    print_missing: bool,
 ) -> CopyStats:
     stats = CopyStats()
 
@@ -92,6 +97,8 @@ def build_subset(
         src_path = event_dir / filename
         if not src_path.is_file():
             stats = _with(missing=stats.missing + 1)
+            if print_missing:
+                print(src_path)
             continue
 
         dst_path = output_root / sport_dir.name / event_dir.name / filename
@@ -107,14 +114,14 @@ def build_subset(
         try:
             _ensure_parent_dir(dst_path, dry_run)
             _copy_file(src_path, dst_path, mode=mode, dry_run=dry_run)
-            stats = _with(copied=stats.copied + 1)
+            stats = _with(transferred=stats.transferred + 1)
         except OSError as e:
             if mode == "hardlink" and getattr(e, "errno", None) == getattr(
                 os, "EXDEV", 18
             ):
                 try:
                     _copy_file(src_path, dst_path, mode="copy", dry_run=dry_run)
-                    stats = _with(copied=stats.copied + 1)
+                    stats = _with(transferred=stats.transferred + 1)
                 except Exception:
                     stats = _with(failed=stats.failed + 1)
             else:
@@ -128,11 +135,7 @@ def build_subset(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description=(
-            "Extract {sport}/{event}/1.mp4 from data/Dataset and rebuild as a subset under data/waibao."
-        )
-    )
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         "--dataset-root",
         type=Path,
@@ -146,13 +149,18 @@ def main() -> int:
         help="Output subset root (default: data/waibao)",
     )
     parser.add_argument(
+        "--output-name",
+        default=None,
+        help="Output directory name under data/ (e.g. waibao2). Use either --output-root or --output-name.",
+    )
+    parser.add_argument(
         "--filename",
         default="1.mp4",
         help="Which file to extract from each event directory (default: 1.mp4)",
     )
     parser.add_argument(
         "--mode",
-        choices=("copy", "hardlink", "symlink"),
+        choices=("copy", "move", "mv", "hardlink", "symlink"),
         default="copy",
         help="How to place files into the subset (default: copy)",
     )
@@ -165,6 +173,11 @@ def main() -> int:
         "--dry-run",
         action="store_true",
         help="Do not write anything; only scan and report",
+    )
+    parser.add_argument(
+        "--print-missing",
+        action="store_true",
+        help="Print each missing source path (event_dir/filename)",
     )
     parser.add_argument(
         "--sport",
@@ -186,7 +199,19 @@ def main() -> int:
     args = parser.parse_args()
 
     dataset_root = args.dataset_root
+
+    default_output_root = Path("data/waibao")
     output_root = args.output_root
+    if args.output_name is not None:
+        if output_root != default_output_root:
+            raise SystemExit("Use either --output-root or --output-name")
+        name = str(args.output_name).strip()
+        if not name:
+            raise SystemExit("--output-name must be non-empty")
+        name_path = Path(name)
+        if name_path.is_absolute() or name_path.name != name:
+            raise SystemExit("--output-name must be a directory name, not a path")
+        output_root = Path("data") / name
 
     if not dataset_root.exists():
         raise SystemExit(f"dataset root not found: {dataset_root}")
@@ -203,6 +228,7 @@ def main() -> int:
         sport=args.sport,
         event=args.event,
         max_actions=args.max_actions,
+        print_missing=bool(args.print_missing),
     )
 
     print("dataset_root:", dataset_root)
@@ -219,7 +245,7 @@ def main() -> int:
     print()
     print("scanned_events:", stats.scanned_events)
     print("found        :", stats.found)
-    print("copied       :", stats.copied)
+    print("transferred  :", stats.transferred)
     print("skipped_exists:", stats.skipped_exists)
     print("missing      :", stats.missing)
     print("failed       :", stats.failed)

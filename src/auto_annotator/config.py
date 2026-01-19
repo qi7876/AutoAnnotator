@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import yaml
 from dotenv import load_dotenv
@@ -34,6 +34,12 @@ class OutputConfig(BaseModel):
     temp_dir: str = "data/output/temp"
 
 
+class BatchProcessingConfig(BaseModel):
+    num_workers: int = 1
+    enable_clips: bool = True
+    enable_frames: bool = True
+
+
 class TasksConfig(BaseModel):
     """Tasks configuration."""
 
@@ -53,6 +59,9 @@ class Config(BaseModel):
 
     gemini: GeminiConfig
     output: OutputConfig
+    batch_processing: BatchProcessingConfig = Field(
+        default_factory=BatchProcessingConfig
+    )
     tasks: TasksConfig
     logging: LoggingConfig
 
@@ -74,7 +83,7 @@ class ConfigManager:
     """Manages application configuration."""
 
     _instance = None
-    _config: Config = None
+    _config: Optional[Config] = None
 
     def __new__(cls):
         """Singleton pattern to ensure only one config instance."""
@@ -112,12 +121,10 @@ class ConfigManager:
         if grounding_api_key:
             config_data["gemini"]["grounding_api_key"] = grounding_api_key
         config_data["project_root"] = os.getenv(
-            "PROJECT_ROOT",
-            str(Path(__file__).parent.parent.parent)
+            "PROJECT_ROOT", str(Path(__file__).parent.parent.parent)
         )
         config_data["dataset_root"] = os.getenv(
-            "DATASET_ROOT",
-            str(Path.cwd() / "data" / "Dataset")
+            "DATASET_ROOT", str(Path.cwd() / "data" / "Dataset")
         )
 
         # Validate API key
@@ -149,7 +156,9 @@ class ConfigManager:
     def _create_directories(self):
         """Create necessary output directories."""
         temp_dir = Path(self._config.project_root) / self._config.output.temp_dir
-        log_dir = Path(self._config.project_root) / Path(self._config.logging.file).parent
+        log_dir = (
+            Path(self._config.project_root) / Path(self._config.logging.file).parent
+        )
 
         temp_dir.mkdir(parents=True, exist_ok=True)
         log_dir.mkdir(parents=True, exist_ok=True)
@@ -157,6 +166,7 @@ class ConfigManager:
     @property
     def config(self) -> Config:
         """Get configuration object."""
+        assert self._config is not None
         return self._config
 
     def get_prompt_path(self, task_name: str) -> Path:

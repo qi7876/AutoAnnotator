@@ -10,6 +10,7 @@ output/
 data/
 .claude
 *.spec
+archive_data
 
 # Virtual environments
 .venv
