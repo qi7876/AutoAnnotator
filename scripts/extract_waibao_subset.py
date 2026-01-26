@@ -17,6 +17,11 @@ class CopyStats:
     skipped_exists: int = 0
     missing: int = 0
     failed: int = 0
+    json_found: int = 0
+    json_transferred: int = 0
+    json_skipped_exists: int = 0
+    json_missing: int = 0
+    json_failed: int = 0
 
 
 def _iter_event_dirs(dataset_root: Path):
@@ -71,6 +76,7 @@ def build_subset(
     dataset_root: Path,
     output_root: Path,
     filename: str,
+    with_json: bool,
     mode: str,
     overwrite: bool,
     dry_run: bool,
@@ -85,6 +91,24 @@ def build_subset(
         return CopyStats(**{**stats.__dict__, **kwargs})
 
     actions_done = 0
+    src_rel_path = Path(filename)
+    json_rel_path = src_rel_path.with_suffix(".json")
+
+    def _transfer(src_path: Path, dst_path: Path) -> bool:
+        try:
+            _ensure_parent_dir(dst_path, dry_run)
+            _copy_file(src_path, dst_path, mode=mode, dry_run=dry_run)
+            return True
+        except OSError as e:
+            if mode == "hardlink" and getattr(e, "errno", None) == getattr(
+                os, "EXDEV", 18
+            ):
+                try:
+                    _copy_file(src_path, dst_path, mode="copy", dry_run=dry_run)
+                    return True
+                except Exception:
+                    return False
+            return False
 
     for sport_dir, event_dir in _iter_event_dirs(dataset_root):
         if sport is not None and sport_dir.name != sport:
@@ -111,21 +135,39 @@ def build_subset(
                 continue
             _safe_unlink(dst_path)
 
-        try:
-            _ensure_parent_dir(dst_path, dry_run)
-            _copy_file(src_path, dst_path, mode=mode, dry_run=dry_run)
+        if _transfer(src_path, dst_path):
             stats = _with(transferred=stats.transferred + 1)
-        except OSError as e:
-            if mode == "hardlink" and getattr(e, "errno", None) == getattr(
-                os, "EXDEV", 18
-            ):
-                try:
-                    _copy_file(src_path, dst_path, mode="copy", dry_run=dry_run)
-                    stats = _with(transferred=stats.transferred + 1)
-                except Exception:
-                    stats = _with(failed=stats.failed + 1)
+        else:
+            stats = _with(failed=stats.failed + 1)
+
+        if with_json and json_rel_path != src_rel_path:
+            json_src = event_dir / json_rel_path
+            if not json_src.is_file():
+                stats = _with(json_missing=stats.json_missing + 1)
+                if print_missing:
+                    print(json_src)
             else:
-                stats = _with(failed=stats.failed + 1)
+                stats = _with(json_found=stats.json_found + 1)
+                json_dst = (
+                    output_root / sport_dir.name / event_dir.name / json_rel_path
+                )
+
+                if json_dst.exists():
+                    if not overwrite:
+                        stats = _with(json_skipped_exists=stats.json_skipped_exists + 1)
+                    else:
+                        _safe_unlink(json_dst)
+                        if _transfer(json_src, json_dst):
+                            stats = _with(
+                                json_transferred=stats.json_transferred + 1
+                            )
+                        else:
+                            stats = _with(json_failed=stats.json_failed + 1)
+                else:
+                    if _transfer(json_src, json_dst):
+                        stats = _with(json_transferred=stats.json_transferred + 1)
+                    else:
+                        stats = _with(json_failed=stats.json_failed + 1)
 
         actions_done += 1
         if max_actions is not None and actions_done >= max_actions:
@@ -157,6 +199,11 @@ def main() -> int:
         "--filename",
         default="1.mp4",
         help="Which file to extract from each event directory (default: 1.mp4)",
+    )
+    parser.add_argument(
+        "--with-json",
+        action="store_true",
+        help='Also export the sibling metadata JSON (e.g., "1.mp4" -> "1.json")',
     )
     parser.add_argument(
         "--mode",
@@ -222,6 +269,7 @@ def main() -> int:
         dataset_root=dataset_root,
         output_root=output_root,
         filename=args.filename,
+        with_json=bool(args.with_json),
         mode=args.mode,
         overwrite=args.overwrite,
         dry_run=args.dry_run,
@@ -234,6 +282,7 @@ def main() -> int:
     print("dataset_root:", dataset_root)
     print("output_root :", output_root)
     print("filename    :", args.filename)
+    print("with_json   :", bool(args.with_json))
     print("mode        :", args.mode)
     print("dry_run     :", args.dry_run)
     print("overwrite   :", args.overwrite)
@@ -249,8 +298,14 @@ def main() -> int:
     print("skipped_exists:", stats.skipped_exists)
     print("missing      :", stats.missing)
     print("failed       :", stats.failed)
+    if bool(args.with_json):
+        print("json_found   :", stats.json_found)
+        print("json_transferred:", stats.json_transferred)
+        print("json_skipped_exists:", stats.json_skipped_exists)
+        print("json_missing :", stats.json_missing)
+        print("json_failed  :", stats.json_failed)
 
-    if stats.failed > 0:
+    if stats.failed > 0 or (bool(args.with_json) and stats.json_failed > 0):
         return 2
     return 0
 

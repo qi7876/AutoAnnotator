@@ -120,7 +120,9 @@ class TestPromptLoader:
         loader = PromptLoader()
         variables = loader.get_required_variables("ScoreboardSingle")
 
-        assert "num_first_frame" in variables
+        assert len(variables) > 0
+        assert "total_frames" in variables
+        assert "max_frame" in variables
 
     def test_validate_prompt_files(self):
         """Test validating prompt files exist."""
