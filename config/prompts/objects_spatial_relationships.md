@@ -27,7 +27,7 @@ Please annotate according to the following JSON template:
 
 Instructions:
 - `annotation_id`, `task_L1`, `task_L2`: I will maintain these fields, you don't need to annotate them
-- `timestamp_frame`: The frame number in the clip where the spatial relationship is observed (will be provided)
+- `timestamp_frame`: The frame number in the clip where the spatial relationship is observed. Use 0-indexed clip frame numbers. Valid range: 0..{max_frame} (inclusive).
 - `question`: Create a question about the spatial relationship between two objects (e.g., left/right, front/back, above/below)
 - `answer`: Provide a clear answer describing the spatial relationship
 - `bounding_box`: For each object, provide:
@@ -35,5 +35,6 @@ Instructions:
   - `description`: A natural language description of the object that will be used for grounding (e.g., "the player wearing red jersey number 10")
 
 The segment has {total_frames} frames in total.
+Valid clip frame indices: 0..{max_frame} (inclusive).
 
 Please analyze the frame content and return your annotation in JSON format. Choose 2 prominent objects in the frame for spatial relationship annotation.

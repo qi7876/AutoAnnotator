@@ -15,11 +15,7 @@ logger = logging.getLogger(__name__)
 class BaseAnnotator(ABC):
     """Base class for all task annotators."""
 
-    def __init__(
-        self,
-        gemini_client: GeminiClient,
-        prompt_loader: PromptLoader
-    ):
+    def __init__(self, gemini_client: GeminiClient, prompt_loader: PromptLoader):
         """
         Initialize base annotator.
 
@@ -55,9 +51,7 @@ class BaseAnnotator(ABC):
 
     @abstractmethod
     def annotate(
-        self,
-        segment_metadata: ClipMetadata,
-        dataset_root: Optional[Path] = None
+        self, segment_metadata: ClipMetadata, dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """
         Perform annotation for this task.
@@ -72,8 +66,7 @@ class BaseAnnotator(ABC):
         raise NotImplementedError
 
     def prepare_prompt_variables(
-        self,
-        segment_metadata: ClipMetadata
+        self, segment_metadata: ClipMetadata
     ) -> Dict[str, Any]:
         """
         Prepare common variables for prompt template.
@@ -87,15 +80,13 @@ class BaseAnnotator(ABC):
         return {
             "num_first_frame": segment_metadata.info.original_starting_frame,
             "total_frames": segment_metadata.info.total_frames,
+            "max_frame": max(0, segment_metadata.info.total_frames - 1),
             "fps": segment_metadata.info.fps,
-            "duration_sec": segment_metadata.info.total_frames / segment_metadata.info.fps,
+            "duration_sec": segment_metadata.info.total_frames
+            / segment_metadata.info.fps,
         }
 
-    def load_prompt(
-        self,
-        segment_metadata: ClipMetadata,
-        **extra_vars
-    ) -> str:
+    def load_prompt(self, segment_metadata: ClipMetadata, **extra_vars) -> str:
         """
         Load and format prompt for this task.
 
@@ -111,10 +102,7 @@ class BaseAnnotator(ABC):
 
         return self.prompt_loader.load_prompt(self.task_name, **variables)
 
-    def add_metadata_fields(
-        self,
-        annotation: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def add_metadata_fields(self, annotation: Dict[str, Any]) -> Dict[str, Any]:
         """
         Add standard metadata fields to annotation.
 
@@ -133,8 +121,7 @@ class BaseAnnotator(ABC):
         return annotation
 
     def validate_annotation(
-        self,
-        annotation: Dict[str, Any]
+        self, annotation: Dict[str, Any]
     ) -> tuple[bool, Optional[str]]:
         """
         Validate annotation result.
@@ -159,6 +146,10 @@ class BaseAnnotator(ABC):
         """
         if isinstance(result, dict):
             return result
-        if isinstance(result, list) and len(result) == 1 and isinstance(result[0], dict):
+        if (
+            isinstance(result, list)
+            and len(result) == 1
+            and isinstance(result[0], dict)
+        ):
             return result[0]
         raise ValueError(f"Unexpected response format: {result}")
