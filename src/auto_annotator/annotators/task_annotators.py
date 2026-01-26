@@ -24,7 +24,9 @@ def _cleanup_temp_frame(frame_path: Optional[Path], media_path: Path) -> None:
         logger.warning(f"Failed to delete temp frame {frame_path}: {exc}")
 
 
-def _ensure_clip_frame_range(frame: Any, segment_metadata: ClipMetadata, field: str) -> int:
+def _ensure_clip_frame_range(
+    frame: Any, segment_metadata: ClipMetadata, field: str
+) -> int:
     frame_int = int(frame)
     total = segment_metadata.info.total_frames
     if total == 1:
@@ -37,9 +39,7 @@ def _ensure_clip_frame_range(frame: Any, segment_metadata: ClipMetadata, field: 
 
 
 def _ensure_clip_window_range(
-    window: Any,
-    segment_metadata: ClipMetadata,
-    field: str
+    window: Any, segment_metadata: ClipMetadata, field: str
 ) -> tuple[int, int]:
     if not isinstance(window, list) or len(window) != 2:
         raise ValueError(f"{field} must be a list of two integers.")
@@ -49,6 +49,7 @@ def _ensure_clip_window_range(
         raise ValueError(f"{field} end frame must be >= start frame.")
     return start, end
 
+
 class ScoreboardSingleAnnotator(BaseAnnotator):
     """Annotator for Scoreboard Understanding - Single Frame task."""
 
@@ -56,7 +57,7 @@ class ScoreboardSingleAnnotator(BaseAnnotator):
         self,
         gemini_client: GeminiClient,
         prompt_loader: PromptLoader,
-        bbox_annotator: BBoxAnnotator
+        bbox_annotator: BBoxAnnotator,
     ):
         super().__init__(gemini_client, prompt_loader)
         self.bbox_annotator = bbox_annotator
@@ -68,9 +69,7 @@ class ScoreboardSingleAnnotator(BaseAnnotator):
         return "Understanding"
 
     def annotate(
-        self,
-        segment_metadata: ClipMetadata,
-        dataset_root: Optional[Path] = None
+        self, segment_metadata: ClipMetadata, dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate scoreboard in a single frame."""
         logger.info(f"Annotating {self.task_name} for {segment_metadata.id}")
@@ -104,13 +103,10 @@ class ScoreboardSingleAnnotator(BaseAnnotator):
                     frame_path = media_path
                 else:
                     clip_frame = _ensure_clip_frame_range(
-                        timestamp_frame,
-                        segment_metadata,
-                        "timestamp_frame"
+                        timestamp_frame, segment_metadata, "timestamp_frame"
                     )
                     frame_path = VideoUtils.extract_frame(
-                        segment_metadata.get_video_path(dataset_root),
-                        clip_frame
+                        segment_metadata.get_video_path(dataset_root), clip_frame
                     )
                     temp_frame_path = frame_path
 
@@ -146,16 +142,22 @@ class ScoreboardMultipleAnnotator(BaseAnnotator):
         return "Understanding"
 
     def annotate(
-        self,
-        segment_metadata: ClipMetadata,
-        dataset_root: Optional[Path] = None
+        self, segment_metadata: ClipMetadata, dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate scoreboard changes across multiple frames."""
         logger.info(f"Annotating {self.task_name} for {segment_metadata.id}")
 
         media_path = segment_metadata.get_video_path(dataset_root)
         is_single_frame = segment_metadata.info.is_single_frame()
-        is_image_file = media_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tiff"}
+        is_image_file = media_path.suffix.lower() in {
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp",
+            ".bmp",
+            ".gif",
+            ".tiff",
+        }
         media_file = None
         if not (is_single_frame or is_image_file):
             media_file = self.gemini_client.upload_video(media_path)
@@ -190,7 +192,7 @@ class ObjectsSpatialRelationshipsAnnotator(BaseAnnotator):
         self,
         gemini_client: GeminiClient,
         prompt_loader: PromptLoader,
-        bbox_annotator: BBoxAnnotator
+        bbox_annotator: BBoxAnnotator,
     ):
         super().__init__(gemini_client, prompt_loader)
         self.bbox_annotator = bbox_annotator
@@ -202,16 +204,22 @@ class ObjectsSpatialRelationshipsAnnotator(BaseAnnotator):
         return "Understanding"
 
     def annotate(
-        self,
-        segment_metadata: ClipMetadata,
-        dataset_root: Optional[Path] = None
+        self, segment_metadata: ClipMetadata, dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate spatial relationships between objects."""
         logger.info(f"Annotating {self.task_name} for {segment_metadata.id}")
 
         media_path = segment_metadata.get_video_path(dataset_root)
         is_single_frame = segment_metadata.info.is_single_frame()
-        is_image_file = media_path.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tiff"}
+        is_image_file = media_path.suffix.lower() in {
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp",
+            ".bmp",
+            ".gif",
+            ".tiff",
+        }
         media_file = None
         if not (is_single_frame or is_image_file):
             media_file = self.gemini_client.upload_video(media_path)
@@ -239,13 +247,10 @@ class ObjectsSpatialRelationshipsAnnotator(BaseAnnotator):
                     frame_path = media_path
                 else:
                     clip_frame = _ensure_clip_frame_range(
-                        timestamp_frame,
-                        segment_metadata,
-                        "timestamp_frame"
+                        timestamp_frame, segment_metadata, "timestamp_frame"
                     )
                     frame_path = VideoUtils.extract_frame(
-                        segment_metadata.get_video_path(dataset_root),
-                        clip_frame
+                        segment_metadata.get_video_path(dataset_root), clip_frame
                     )
                     temp_frame_path = frame_path
 
@@ -287,7 +292,7 @@ class SpatialTemporalGroundingAnnotator(BaseAnnotator):
         gemini_client: GeminiClient,
         prompt_loader: PromptLoader,
         bbox_annotator: BBoxAnnotator,
-        tracker: ObjectTracker
+        tracker: ObjectTracker,
     ):
         super().__init__(gemini_client, prompt_loader)
         self.bbox_annotator = bbox_annotator
@@ -300,9 +305,7 @@ class SpatialTemporalGroundingAnnotator(BaseAnnotator):
         return "Understanding"
 
     def annotate(
-        self,
-        segment_metadata: ClipMetadata,
-        dataset_root: Optional[Path] = None
+        self, segment_metadata: ClipMetadata, dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate spatial-temporal grounding."""
         logger.info(f"Annotating {self.task_name} for {segment_metadata.id}")
@@ -327,13 +330,10 @@ class SpatialTemporalGroundingAnnotator(BaseAnnotator):
             if first_frame_desc and len(a_window) == 2:
                 # Extract first frame of answer window
                 clip_start, clip_end = _ensure_clip_window_range(
-                    a_window,
-                    segment_metadata,
-                    "A_window_frame"
+                    a_window, segment_metadata, "A_window_frame"
                 )
                 frame_path = VideoUtils.extract_frame(
-                    segment_metadata.get_video_path(dataset_root),
-                    clip_start
+                    segment_metadata.get_video_path(dataset_root), clip_start
                 )
                 temp_frame_path = frame_path
 
@@ -342,22 +342,23 @@ class SpatialTemporalGroundingAnnotator(BaseAnnotator):
                         frame_path, first_frame_desc
                     )
 
-                    first_bboxes_with_label = [{
-                        "bbox": first_bbox.to_list(),
-                        "label": first_frame_desc
-                    }]
+                    first_bboxes_with_label = [
+                        {"bbox": first_bbox.to_list(), "label": first_frame_desc}
+                    ]
 
                     tracking_result = self.tracker.track_from_first_bbox(
                         segment_metadata.get_video_path(dataset_root),
                         first_bboxes_with_label,
                         clip_start,
-                        clip_end
+                        clip_end,
                     )
 
                     result["first_bounding_box"] = first_bbox.to_list()
                     result["tracking_bboxes"] = tracking_result.to_dict()
                 finally:
-                    _cleanup_temp_frame(temp_frame_path, segment_metadata.get_video_path(dataset_root))
+                    _cleanup_temp_frame(
+                        temp_frame_path, segment_metadata.get_video_path(dataset_root)
+                    )
 
             result.pop("first_frame_description", None)
 
@@ -379,7 +380,7 @@ class ContinuousActionsCaptionAnnotator(BaseAnnotator):
         gemini_client: GeminiClient,
         prompt_loader: PromptLoader,
         bbox_annotator: BBoxAnnotator,
-        tracker: ObjectTracker
+        tracker: ObjectTracker,
     ):
         super().__init__(gemini_client, prompt_loader)
         self.bbox_annotator = bbox_annotator
@@ -392,9 +393,7 @@ class ContinuousActionsCaptionAnnotator(BaseAnnotator):
         return "Understanding"
 
     def annotate(
-        self,
-        segment_metadata: ClipMetadata,
-        dataset_root: Optional[Path] = None
+        self, segment_metadata: ClipMetadata, dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate continuous actions."""
         logger.info(f"Annotating {self.task_name} for {segment_metadata.id}")
@@ -417,33 +416,31 @@ class ContinuousActionsCaptionAnnotator(BaseAnnotator):
 
             if first_frame_desc and len(q_window) == 2:
                 clip_start, clip_end = _ensure_clip_window_range(
-                    q_window,
-                    segment_metadata,
-                    "Q_window_frame"
+                    q_window, segment_metadata, "Q_window_frame"
                 )
                 frame_path = VideoUtils.extract_frame(
-                    segment_metadata.get_video_path(dataset_root),
-                    clip_start
+                    segment_metadata.get_video_path(dataset_root), clip_start
                 )
                 temp_frame_path = frame_path
                 try:
                     first_bbox = self.bbox_annotator.annotate_single_object(
                         frame_path, first_frame_desc
                     )
-                    first_bboxes_with_label = [{
-                        "bbox": first_bbox.to_list(),
-                        "label": first_frame_desc
-                    }]
+                    first_bboxes_with_label = [
+                        {"bbox": first_bbox.to_list(), "label": first_frame_desc}
+                    ]
                     tracking_result = self.tracker.track_from_first_bbox(
                         segment_metadata.get_video_path(dataset_root),
                         first_bboxes_with_label,
                         clip_start,
-                        clip_end
+                        clip_end,
                     )
                     result["first_bounding_box"] = first_bbox.to_list()
                     result["tracking_bboxes"] = tracking_result.to_dict()
                 finally:
-                    _cleanup_temp_frame(temp_frame_path, segment_metadata.get_video_path(dataset_root))
+                    _cleanup_temp_frame(
+                        temp_frame_path, segment_metadata.get_video_path(dataset_root)
+                    )
 
             result.pop("first_frame_description", None)
 
@@ -477,9 +474,7 @@ class ContinuousEventsCaptionAnnotator(BaseAnnotator):
         return "Understanding"
 
     def annotate(
-        self,
-        segment_metadata: ClipMetadata,
-        dataset_root: Optional[Path] = None
+        self, segment_metadata: ClipMetadata, dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate continuous events."""
         logger.info(f"Annotating {self.task_name} for {segment_metadata.id}")
@@ -525,7 +520,7 @@ class ObjectTrackingAnnotator(BaseAnnotator):
         gemini_client: GeminiClient,
         prompt_loader: PromptLoader,
         bbox_annotator: BBoxAnnotator,
-        tracker: ObjectTracker
+        tracker: ObjectTracker,
     ):
         super().__init__(gemini_client, prompt_loader)
         self.bbox_annotator = bbox_annotator
@@ -538,9 +533,7 @@ class ObjectTrackingAnnotator(BaseAnnotator):
         return "Perception"
 
     def annotate(
-        self,
-        segment_metadata: ClipMetadata,
-        dataset_root: Optional[Path] = None
+        self, segment_metadata: ClipMetadata, dataset_root: Optional[Path] = None
     ) -> Dict[str, Any]:
         """Annotate object tracking."""
         logger.info(f"Annotating {self.task_name} for {segment_metadata.id}")
@@ -565,35 +558,33 @@ class ObjectTrackingAnnotator(BaseAnnotator):
             if first_frame_desc and len(q_window) == 2:
                 # Extract first frame
                 clip_start, clip_end = _ensure_clip_window_range(
-                    q_window,
-                    segment_metadata,
-                    "Q_window_frame"
+                    q_window, segment_metadata, "Q_window_frame"
                 )
                 frame_path = VideoUtils.extract_frame(
-                    segment_metadata.get_video_path(dataset_root),
-                    clip_start
+                    segment_metadata.get_video_path(dataset_root), clip_start
                 )
                 temp_frame_path = frame_path
                 try:
                     first_bbox = self.bbox_annotator.annotate_single_object(
                         frame_path, first_frame_desc
                     )
-                    first_bboxes_with_label = [{
-                        "bbox": first_bbox.to_list(),
-                        "label": first_frame_desc
-                    }]
+                    first_bboxes_with_label = [
+                        {"bbox": first_bbox.to_list(), "label": first_frame_desc}
+                    ]
 
                     tracking_result = self.tracker.track_from_first_bbox(
                         segment_metadata.get_video_path(),
                         first_bboxes_with_label,
                         clip_start,
-                        clip_end
+                        clip_end,
                     )
                     # Handle tracking result (now returns TrackingResult object)
                     result["first_bounding_box"] = first_bbox.to_list()
                     result["tracking_bboxes"] = tracking_result.to_dict()
                 finally:
-                    _cleanup_temp_frame(temp_frame_path, segment_metadata.get_video_path(dataset_root))
+                    _cleanup_temp_frame(
+                        temp_frame_path, segment_metadata.get_video_path(dataset_root)
+                    )
 
             result.pop("first_frame_description", None)
 
@@ -616,7 +607,7 @@ class TaskAnnotatorFactory:
         gemini_client: GeminiClient,
         prompt_loader: PromptLoader,
         bbox_annotator: BBoxAnnotator,
-        tracker: ObjectTracker
+        tracker: ObjectTracker,
     ) -> BaseAnnotator:
         """
         Create an annotator for a specific task.
@@ -660,8 +651,7 @@ class TaskAnnotatorFactory:
 
         if task_name not in annotators:
             raise ValueError(
-                f"Unknown task: {task_name}. "
-                f"Available tasks: {list(annotators.keys())}"
+                f"Unknown task: {task_name}. Available tasks: {list(annotators.keys())}"
             )
 
         return annotators[task_name]()

@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 
-from .adapters import InputAdapter, ClipMetadata
+from .adapters import ClipMetadata, InputAdapter
 from .annotators import GeminiClient, TaskAnnotatorFactory
 from .annotators.bbox_annotator import BBoxAnnotator
 from .annotators.tracker import ObjectTracker
@@ -65,9 +65,9 @@ def setup_logging():
     root_logger.addHandler(stream_handler)
 
     logger = logging.getLogger(__name__)
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info("AutoAnnotator started")
-    logger.info("="*60)
+    logger.info("=" * 60)
 
 
 def process_segment(
@@ -77,7 +77,7 @@ def process_segment(
     bbox_annotator: BBoxAnnotator,
     tracker: ObjectTracker,
     output_dir: Path,
-    dataset_root: Path
+    dataset_root: Path,
 ) -> Path:
     """
     Process a single segment.
@@ -100,8 +100,7 @@ def process_segment(
 
     # Validate segment metadata
     is_valid, error = InputAdapter.validate_metadata(
-        segment_metadata,
-        dataset_root=dataset_root
+        segment_metadata, dataset_root=dataset_root
     )
     if not is_valid:
         logger.error(f"Invalid clip metadata: {error}")
@@ -132,7 +131,7 @@ def process_segment(
             "Skipping unknown tasks for %s %s: %s",
             segment_type,
             segment_metadata.id,
-            ", ".join(unknown_tasks)
+            ", ".join(unknown_tasks),
         )
 
     annotator_cache: dict[str, Any] = {}
@@ -150,7 +149,7 @@ def process_segment(
                     gemini_client=gemini_client,
                     prompt_loader=prompt_loader,
                     bbox_annotator=bbox_annotator,
-                    tracker=tracker
+                    tracker=tracker,
                 )
                 annotator_cache[task_name] = annotator
             is_valid, error = annotator.validate_annotation(ann)
@@ -158,15 +157,11 @@ def process_segment(
                 completed_tasks.add(task_name)
             else:
                 logger.warning(
-                    "Existing annotation for %s is invalid: %s",
-                    task_name,
-                    error
+                    "Existing annotation for %s is invalid: %s", task_name, error
                 )
         except Exception as exc:
             logger.warning(
-                "Failed to validate existing annotation for %s: %s",
-                task_name,
-                exc
+                "Failed to validate existing annotation for %s: %s", task_name, exc
             )
 
     tasks_to_run = [
@@ -179,7 +174,7 @@ def process_segment(
         logger.info(
             "All known tasks already annotated for %s: %s",
             segment_type,
-            segment_metadata.id
+            segment_metadata.id,
         )
         return output_path
 
@@ -196,7 +191,7 @@ def process_segment(
                 gemini_client=gemini_client,
                 prompt_loader=prompt_loader,
                 bbox_annotator=bbox_annotator,
-                tracker=tracker
+                tracker=tracker,
             )
 
             # Perform annotation
@@ -209,9 +204,7 @@ def process_segment(
                 continue
 
             annotation = _maybe_write_tracking_mot(
-                annotation,
-                segment_metadata,
-                output_dir
+                annotation, segment_metadata, output_dir
             )
             annotations.append(annotation)
             logger.info(f"Successfully annotated {task_name}")
@@ -220,7 +213,7 @@ def process_segment(
             logger.warning(f"Task {task_name} requires unimplemented features: {e}")
             continue
         except ValueError as e:
-            logger.warning(f"Skipping unknown task {task_name}: {e}")
+            logger.warning(f"Skipping task {task_name}: {e}")
             continue
         except Exception as e:
             logger.error(f"Failed to annotate {task_name}: {e}", exc_info=True)
@@ -235,7 +228,7 @@ def process_segment(
                 "sport": segment_metadata.origin.sport,
                 "event": segment_metadata.origin.event,
             },
-            "annotations": annotations
+            "annotations": annotations,
         }
 
     JSONUtils.save_json(output_data, output_path)
@@ -245,9 +238,7 @@ def process_segment(
 
 
 def _maybe_write_tracking_mot(
-    annotation: Dict[str, Any],
-    segment_metadata: ClipMetadata,
-    output_dir: Path
+    annotation: Dict[str, Any], segment_metadata: ClipMetadata, output_dir: Path
 ) -> Dict[str, Any]:
     """Convert tracking_bboxes into MOT file reference when applicable."""
     tracking = annotation.get("tracking_bboxes")
@@ -276,10 +267,7 @@ def _maybe_write_tracking_mot(
     except ValueError:
         mot_ref = str(mot_path)
 
-    annotation["tracking_bboxes"] = {
-        "mot_file": mot_ref,
-        "format": "MOTChallenge"
-    }
+    annotation["tracking_bboxes"] = {"mot_file": mot_ref, "format": "MOTChallenge"}
     return annotation
 
 
@@ -335,7 +323,7 @@ def _tracking_to_mot_rows(tracking: Dict[str, Any]) -> List[str]:
 
 
 def _load_segment_metadata(
-    segment_paths: Iterable[Path]
+    segment_paths: Iterable[Path],
 ) -> List[Tuple[Path, ClipMetadata]]:
     """Load segment metadata files and return pairs of (path, metadata)."""
     logger = logging.getLogger(__name__)
@@ -353,10 +341,7 @@ def _load_segment_metadata(
     return loaded
 
 
-def _prune_orphan_outputs(
-    output_dir: Path,
-    valid_clip_ids: set[str]
-):
+def _prune_orphan_outputs(output_dir: Path, valid_clip_ids: set[str]):
     """Remove output files whose source metadata no longer exists."""
     logger = logging.getLogger(__name__)
     if not output_dir.exists():
@@ -382,9 +367,7 @@ def _prune_orphan_outputs(
 
 
 def process_segments_batch(
-    segment_paths: List[Path],
-    output_dir: Path,
-    prune_orphans: bool = False
+    segment_paths: List[Path], output_dir: Path, prune_orphans: bool = False
 ):
     """
     Process a batch of segments.
@@ -411,7 +394,7 @@ def process_segments_batch(
         backend=config.tasks.tracking.get("tracker_backend", "local"),
         model_path=model_path,
         hf_model_id=config.tasks.tracking.get("hf_model_id"),
-        auto_download=config.tasks.tracking.get("auto_download", False)
+        auto_download=config.tasks.tracking.get("auto_download", False),
     )
 
     # Ensure output directory exists
@@ -447,7 +430,7 @@ def process_segments_batch(
                 bbox_annotator=bbox_annotator,
                 tracker=tracker,
                 output_dir=output_dir,
-                dataset_root=config.dataset_root
+                dataset_root=config.dataset_root,
             )
 
             successful += 1
@@ -459,10 +442,10 @@ def process_segments_batch(
             continue
 
     # Summary
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info("Processing complete")
     logger.info(f"Successful: {successful}")
     logger.info(f"Failed: {failed}")
     logger.info(f"Total: {successful + failed}")
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info("AutoAnnotator finished")
