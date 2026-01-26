@@ -30,6 +30,7 @@ logs/
 .coverage
 htmlcov/
 .pytest_cache/
+.ruff_cache/
 
 # IDE and editor files
 .vscode/
