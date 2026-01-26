@@ -26,8 +26,8 @@ output:
   temp_dir: "data/output/"
 
 batch_processing:
-  num_workers: 4
-  enable_clips: false
+  num_workers: 3
+  enable_clips: true
   enable_frames: true
 
 # Task configuration
