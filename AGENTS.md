@@ -2,12 +2,12 @@
 
 ## Project Structure & Module Organization
 
-- `src/auto_annotator/`: core library (adapters, annotators, config, utils).
-- `src/bbox_fixer/`, `src/osr_fixer/`: GUI/tools for reviewing/fixing annotations.
-- `scripts/`: runnable utilities (batch processing, dataset maintenance, converters).
-- `tests/`: `pytest` unit tests; `tests/manual_tests/` contains scripts meant to be run manually.
-- `config/`: runtime configuration (`config.yaml`) and prompt templates (`config/prompts/`); local secrets live in `config/.env` (do not commit).
-- `data/`: local datasets/outputs (treat as non-source artifacts unless explicitly requested).
+- `src/auto_annotator/`: core library (adapters, annotators, Gemini client, config, utils).
+- `src/video_captioner/`: generates dense captions for `caption_data/` videos (see `docs/VIDEO_CAPTIONER.md`).
+- `src/bbox_fixer/`, `src/osr_fixer/`: review/fix tools (GUI/CLI) for annotation artifacts.
+- `scripts/`: runnable utilities (batch processing, dataset maintenance, caption generation).
+- `config/`: runtime config (`config.yaml`) and prompt templates (`config/prompts/`, `config/caption_prompts/`).
+- `tests/`: `pytest` unit tests; `tests/manual_tests/` for manual/credentialed runs.
 - `docs/`, `examples/`: reference docs and sample metadata.
 
 ## Build, Test, and Development Commands
@@ -15,28 +15,30 @@
 This repo uses `uv` with `pyproject.toml` (Python `>=3.12,<3.13`).
 
 ```bash
-uv sync                          # install dependencies (and create/update venv)
-uv run pytest                    # run the full test suite
+uv sync                         # install runtime deps
+uv sync --extra dev             # install dev tooling (pytest/ruff/black)
+uv run pytest                   # run full test suite
+uv run pytest tests/test_config.py
 uv run python scripts/batch_processing.py
-uv run python scripts/bbox_fixer_cli.py  # launch BBoxFixer GUI
-uv run ruff check .              # lint (if dev deps installed)
-uv run black .                   # format (if dev deps installed)
+uv run python scripts/generate_captions.py --dataset-root caption_data --output-root caption_outputs --model fake
+uv run ruff check .             # lint (dev extra)
+uv run black .                  # format (dev extra)
 ```
 
 ## Coding Style & Naming Conventions
 
-- Python: 4-space indentation, type hints preferred, no `Any` unless unavoidable.
-- Naming: `snake_case` for functions/modules, `PascalCase` for classes, constants in `UPPER_SNAKE_CASE`.
-- Formatting/linting: `black` + `ruff` (use defaults unless a repo config is added later).
+- Python: 4-space indentation; prefer type hints and small, testable functions.
+- Naming: `snake_case` for modules/functions, `PascalCase` for classes, `UPPER_SNAKE_CASE` for constants.
+- Keep user-facing strings/prompts in `config/` rather than hardcoding in code.
 
 ## Testing Guidelines
 
-- Framework: `pytest` (some tests may use `pytest-asyncio`).
-- Naming: add unit tests under `tests/` as `test_*.py`; avoid relying on external APIs/credentials.
-- Run locally with `uv run pytest` and ensure all tests pass before pushing.
+- Framework: `pytest` (some tests use `pytest-asyncio`).
+- Tests should be deterministic and offline: avoid Gemini/GCS calls; use fakes/stubs and small local fixtures.
+- Naming: `tests/test_*.py` for unit tests; keep integration-style scripts in `tests/manual_tests/`.
 
 ## Commit & Pull Request Guidelines
 
-- Commits follow Conventional Commits-style prefixes seen in history: `feat:`, `fix:`, `refactor:`, plus `Revert "..."` when reverting.
-- PRs should include: purpose/impact, how to validate (commands + expected output), and any config changes (e.g., new keys in `config/config.yaml`).
-- Never include secrets (`config/.env`) or large datasets/outputs in PRs; prefer scripts and small fixtures.
+- Commit messages follow Conventional Commits-style prefixes used in history (`feat:`, `fix:`, `chore:`, `docs:`).
+- PRs include: summary, validation steps (commands + expected output), and screenshots for GUI changes.
+- Do not commit secrets (`config/.env`), caches (e.g., `.ruff_cache/`), or large datasets/outputs.
