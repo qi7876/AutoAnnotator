@@ -25,6 +25,7 @@ config/.env
 output/temp/
 output/final/
 logs/
+caption_outputs/
 
 # Test coverage
 .coverage
