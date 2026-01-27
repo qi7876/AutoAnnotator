@@ -9,7 +9,7 @@ from pathlib import Path
 
 from video_captioner.model import FakeCaptionModel
 from video_captioner.pipeline import EventVideo, process_event_video
-from video_captioner.schema import LongCaptionResponse
+from video_captioner.schema import DenseSegmentCaptionResponse
 
 
 def _make_test_video(path: Path, *, duration_sec: float, fps: int = 30) -> None:
@@ -84,11 +84,20 @@ def test_process_event_video_writes_all_outputs(tmp_path: Path) -> None:
     assert len(chunk_payload) == len(chunk_records)
     assert len(chunk_payload) > 0
     assert chunk_payload[0]["spans"]
+    assert chunk_payload[0]["info"]["original_starting_frame"] >= 0
+    assert chunk_payload[0]["info"]["total_frames"] > 0
+    assert chunk_payload[0]["info"]["fps"] > 0
+
+    meta_payload = json.loads((event_out / "run_meta.json").read_text(encoding="utf-8"))
+    assert meta_payload["segment_info"]["original_starting_frame"] >= 0
+    assert meta_payload["segment_info"]["total_frames"] > 0
+    assert meta_payload["segment_info"]["fps"] > 0
 
     long_payload = json.loads((event_out / "long_caption.json").read_text(encoding="utf-8"))
-    parsed = LongCaptionResponse.model_validate(long_payload)
-    assert parsed.long_caption
-    assert long_record.response.long_caption == parsed.long_caption
+    parsed = DenseSegmentCaptionResponse.model_validate(long_payload)
+    assert parsed.segment_summary
+    assert len(parsed.spans) > 0
+    assert long_record.response.segment_summary == parsed.segment_summary
 
     # Resume should return existing outputs without error.
     segment_path2, chunk_records2, long_record2 = process_event_video(
@@ -105,5 +114,4 @@ def test_process_event_video_writes_all_outputs(tmp_path: Path) -> None:
     )
     assert segment_path2 == segment_path
     assert len(chunk_records2) == len(chunk_records)
-    assert long_record2.response.long_caption == long_record.response.long_caption
-
+    assert long_record2.response.segment_summary == long_record.response.segment_summary

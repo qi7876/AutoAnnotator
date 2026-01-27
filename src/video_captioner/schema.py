@@ -73,3 +73,39 @@ class LongCaptionResponse(BaseModel):
         # Convenience wrapper for symmetric API with ChunkCaptionResponse.
         return cls.model_validate(obj)
 
+
+class ClipInfo(BaseModel):
+    """AutoAnnotator-style frame mapping for a clip/segment."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    original_starting_frame: int = Field(ge=0)
+    total_frames: int = Field(gt=0)
+    fps: float = Field(gt=0)
+
+
+class DenseSpan(BaseModel):
+    """A caption span mapped to original-video frame coordinates."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    start_frame: int = Field(ge=0)
+    end_frame: int = Field(ge=0)
+    caption: str = Field(min_length=1)
+    chunk_index: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _check_frame_order(self) -> "DenseSpan":
+        if self.end_frame < self.start_frame:
+            raise ValueError("end_frame must be >= start_frame")
+        return self
+
+
+class DenseSegmentCaptionResponse(BaseModel):
+    """Dense, play-by-play captions for the extracted long segment."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    info: ClipInfo
+    segment_summary: str = Field(min_length=1)
+    spans: list[DenseSpan] = Field(min_length=1)

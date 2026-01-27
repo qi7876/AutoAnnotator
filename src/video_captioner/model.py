@@ -21,8 +21,17 @@ class ChunkPromptContext:
 
 
 class CaptionModel(Protocol):
+    sampling_fps: float
+
     def caption_chunk(
-        self, *, video_path: Path, ctx: ChunkPromptContext, language: str
+        self,
+        *,
+        video_path: Path,
+        ctx: ChunkPromptContext,
+        language: str,
+        previous_summary: str,
+        min_spans: int,
+        max_spans: int,
     ) -> ChunkCaptionResponse: ...
 
     def merge_long_caption(
@@ -55,30 +64,69 @@ class GeminiCaptionModel:
         self.prompts = prompts or CaptionPrompts()
         self.video_timeout_sec = video_timeout_sec
         self.text_timeout_sec = text_timeout_sec
+        sampling_fps = getattr(
+            getattr(getattr(gemini_client, "config", None), "gemini", None),
+            "video_sampling_fps",
+            10,
+        )
+        self.sampling_fps = float(sampling_fps)
 
     def caption_chunk(
-        self, *, video_path: Path, ctx: ChunkPromptContext, language: str
+        self,
+        *,
+        video_path: Path,
+        ctx: ChunkPromptContext,
+        language: str,
+        previous_summary: str,
+        min_spans: int,
+        max_spans: int,
     ) -> ChunkCaptionResponse:
-        prompt = self.prompts.render_chunk_prompt(
+        if min_spans <= 0 or max_spans <= 0 or min_spans > max_spans:
+            raise ValueError("Invalid span count range")
+
+        base_prompt = self.prompts.render_chunk_prompt(
             language=language,
             fps=ctx.fps,
             total_frames=ctx.total_frames,
             max_frame=ctx.max_frame,
+            previous_summary=previous_summary,
+            min_spans=min_spans,
+            max_spans=max_spans,
         )
 
-        upload_path, cleanup_local = self._maybe_stage_for_vertex(video_path)
-        video_file = self.gemini_client.upload_video(upload_path)
-        try:
-            raw = self.gemini_client.annotate_video(
-                video_file, prompt, timeout=self.video_timeout_sec
-            )
-        finally:
-            self.gemini_client.cleanup_file(video_file)
-            cleanup_local()
+        last_error: Exception | None = None
+        for attempt in range(2):
+            prompt = base_prompt
+            if attempt == 1:
+                prompt = (
+                    base_prompt
+                    + "\n\nIMPORTANT: Ensure the JSON has "
+                    + f"{min_spans}..{max_spans} spans."
+                )
 
-        resp = ChunkCaptionResponse.model_validate(raw)
-        resp.validate_against_max_frame(ctx.max_frame)
-        return resp
+            upload_path, cleanup_local = self._maybe_stage_for_vertex(video_path)
+            video_file = self.gemini_client.upload_video(upload_path)
+            try:
+                raw = self.gemini_client.annotate_video(
+                    video_file, prompt, timeout=self.video_timeout_sec
+                )
+            except Exception as exc:
+                last_error = exc
+                continue
+            finally:
+                self.gemini_client.cleanup_file(video_file)
+                cleanup_local()
+
+            resp = ChunkCaptionResponse.model_validate(raw)
+            resp.validate_against_max_frame(ctx.max_frame)
+            if min_spans <= len(resp.spans) <= max_spans:
+                return resp
+            last_error = ValueError(
+                f"Model returned {len(resp.spans)} spans, expected {min_spans}..{max_spans}"
+            )
+
+        assert last_error is not None
+        raise last_error
 
     def merge_long_caption(
         self, *, chunks_json: str, language: str
@@ -170,16 +218,42 @@ class GeminiCaptionModel:
 class FakeCaptionModel:
     """Deterministic caption model for unit tests and offline debugging."""
 
+    sampling_fps: float = 10.0
+
     def caption_chunk(
-        self, *, video_path: Path, ctx: ChunkPromptContext, language: str
+        self,
+        *,
+        video_path: Path,
+        ctx: ChunkPromptContext,
+        language: str,
+        previous_summary: str,
+        min_spans: int,
+        max_spans: int,
     ) -> ChunkCaptionResponse:
-        mid = max(0, ctx.max_frame // 2)
+        if min_spans <= 0 or max_spans <= 0 or min_spans > max_spans:
+            raise ValueError("Invalid span count range")
+        span_count = min_spans
+        total = ctx.max_frame + 1
+        step = max(1, total // span_count)
+
+        spans = []
+        start = 0
+        for idx in range(span_count):
+            if start > ctx.max_frame:
+                break
+            end = ctx.max_frame if idx == span_count - 1 else min(ctx.max_frame, start + step - 1)
+            spans.append(
+                {
+                    "start_frame": start,
+                    "end_frame": end,
+                    "caption": f"span {idx}",
+                }
+            )
+            start = end + 1
+
         payload = {
-            "chunk_summary": f"{language}: {video_path.name}",
-            "spans": [
-                {"start_frame": 0, "end_frame": mid, "caption": "first half"},
-                {"start_frame": mid + 1, "end_frame": ctx.max_frame, "caption": "second half"},
-            ],
+            "chunk_summary": f"{language}: {video_path.name} | prev={bool(previous_summary)}",
+            "spans": spans,
         }
         resp = ChunkCaptionResponse.model_validate(payload)
         resp.validate_against_max_frame(ctx.max_frame)

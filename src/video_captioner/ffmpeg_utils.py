@@ -23,6 +23,7 @@ class FfmpegCommandError(RuntimeError):
 @dataclass(frozen=True)
 class VideoProbe:
     duration_sec: float
+    start_time_sec: float = 0.0
     fps: float | None = None
     total_frames: int | None = None
 
@@ -79,7 +80,14 @@ def probe_video(video_path: Path) -> VideoProbe:
     data = json.loads(proc.stdout)
 
     duration = None
+    start_time = 0.0
     fmt = data.get("format") or {}
+    start_time_str = fmt.get("start_time")
+    if start_time_str not in (None, "N/A"):
+        try:
+            start_time = float(start_time_str)
+        except (TypeError, ValueError):
+            start_time = 0.0
     duration_str = fmt.get("duration")
     if duration_str is not None:
         try:
@@ -110,7 +118,12 @@ def probe_video(video_path: Path) -> VideoProbe:
     if total_frames is None and fps is not None:
         total_frames = int(round(duration * fps))
 
-    return VideoProbe(duration_sec=duration, fps=fps, total_frames=total_frames)
+    return VideoProbe(
+        duration_sec=duration,
+        start_time_sec=start_time,
+        fps=fps,
+        total_frames=total_frames,
+    )
 
 
 def select_random_segment(
@@ -158,6 +171,7 @@ def keyframe_trim_copy(
     start_sec: float,
     duration_sec: float,
     overwrite: bool = False,
+    preserve_timestamps: bool = False,
 ) -> None:
     """
     Trim by keyframe-aligned seeking and stream-copy (no re-encode).
@@ -174,31 +188,39 @@ def keyframe_trim_copy(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    cmd = [
-        "ffmpeg",
-        "-hide_banner",
-        "-loglevel",
-        "error",
-    ]
+    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error"]
     if overwrite:
         cmd.append("-y")
-    cmd += [
-        "-ss",
-        f"{start_sec:.3f}",
-        "-i",
-        str(input_path),
-        "-t",
-        f"{duration_sec:.3f}",
-        "-map",
-        "0",
-        "-c",
-        "copy",
-        "-avoid_negative_ts",
-        "make_zero",
-        "-movflags",
-        "+faststart",
-        str(output_path),
-    ]
+    cmd += ["-ss", f"{start_sec:.3f}", "-i", str(input_path)]
+    if preserve_timestamps:
+        input_start_time = probe_video(input_path).start_time_sec
+        end_sec = input_start_time + start_sec + duration_sec
+        cmd += [
+            "-to",
+            f"{end_sec:.3f}",
+            "-map",
+            "0",
+            "-c",
+            "copy",
+            "-copyts",
+            "-movflags",
+            "+faststart",
+            str(output_path),
+        ]
+    else:
+        cmd += [
+            "-t",
+            f"{duration_sec:.3f}",
+            "-map",
+            "0",
+            "-c",
+            "copy",
+            "-avoid_negative_ts",
+            "make_zero",
+            "-movflags",
+            "+faststart",
+            str(output_path),
+        ]
     _run(cmd)
 
 
@@ -216,6 +238,7 @@ def split_into_chunks(
     output_dir: Path,
     chunk_duration_sec: float = 60.0,
     overwrite: bool = False,
+    preserve_timestamps: bool = False,
 ) -> list[ChunkSpec]:
     """Split a media file into ~fixed-duration chunks using keyframe stream copy."""
     if chunk_duration_sec <= 0:
@@ -244,10 +267,10 @@ def split_into_chunks(
             start_sec=start,
             duration_sec=dur,
             overwrite=overwrite,
+            preserve_timestamps=preserve_timestamps,
         )
         chunks.append(ChunkSpec(index=idx, start_sec=start, duration_sec=dur, path=out_path))
 
     if not chunks:
         raise RuntimeError(f"No chunks produced for {input_path}")
     return chunks
-

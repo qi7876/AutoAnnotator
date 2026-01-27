@@ -114,3 +114,34 @@ def test_keyframe_trim_and_split(tmp_path: Path) -> None:
         assert chunk.path.is_file()
         c_probe = probe_video(chunk.path)
         assert c_probe.duration_sec > 0
+
+
+def test_preserve_timestamps_allows_nested_splitting(tmp_path: Path) -> None:
+    src = tmp_path / "src.mp4"
+    _make_test_video(src, duration_sec=12.0)
+
+    seg = tmp_path / "seg.mp4"
+    keyframe_trim_copy(
+        input_path=src,
+        output_path=seg,
+        start_sec=5.0,
+        duration_sec=4.0,
+        overwrite=True,
+        preserve_timestamps=True,
+    )
+    seg_probe = probe_video(seg)
+    assert seg_probe.start_time_sec > 0
+    assert seg_probe.duration_sec > 0
+
+    chunks = split_into_chunks(
+        input_path=seg,
+        output_dir=tmp_path / "chunks_preserve",
+        chunk_duration_sec=2.0,
+        overwrite=True,
+        preserve_timestamps=True,
+    )
+    assert len(chunks) >= 2
+    for chunk in chunks:
+        c_probe = probe_video(chunk.path)
+        assert c_probe.duration_sec > 0
+        assert c_probe.start_time_sec >= seg_probe.start_time_sec - 0.1

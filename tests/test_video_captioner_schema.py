@@ -7,7 +7,7 @@ import json
 import pytest
 
 from video_captioner.prompts import CaptionPrompts
-from video_captioner.schema import ChunkCaptionResponse, LongCaptionResponse
+from video_captioner.schema import ChunkCaptionResponse, DenseSegmentCaptionResponse, LongCaptionResponse
 
 
 def test_chunk_caption_schema_rejects_overlapping_spans() -> None:
@@ -56,9 +56,14 @@ def test_prompts_render() -> None:
         fps=30,
         total_frames=60,
         max_frame=59,
+        previous_summary="上一段总结",
+        min_spans=8,
+        max_spans=18,
     )
     assert "Language: zh" in chunk_prompt
     assert "0..59" in chunk_prompt
+    assert "Previous chunk summary" in chunk_prompt
+    assert "between 8 and 18" in chunk_prompt
 
     merge_prompt = prompts.render_merge_prompt(
         language="zh",
@@ -67,3 +72,15 @@ def test_prompts_render() -> None:
     assert "Language: zh" in merge_prompt
     assert "Input chunk captions" in merge_prompt
 
+
+def test_dense_segment_caption_schema() -> None:
+    resp = DenseSegmentCaptionResponse.model_validate(
+        {
+            "info": {"original_starting_frame": 100, "total_frames": 50, "fps": 10},
+            "segment_summary": "s",
+            "spans": [
+                {"start_frame": 100, "end_frame": 110, "caption": "a", "chunk_index": 0}
+            ],
+        }
+    )
+    assert resp.info.original_starting_frame == 100

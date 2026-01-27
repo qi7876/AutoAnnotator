@@ -45,11 +45,15 @@ def test_gemini_caption_model_caption_chunk_renders_prompt_and_cleans_up(tmp_pat
         video_path=video_path,
         ctx=ChunkPromptContext(fps=30.0, total_frames=21, max_frame=20),
         language="zh",
+        previous_summary="",
+        min_spans=1,
+        max_spans=5,
     )
     assert resp.chunk_summary == "summary"
     assert dummy.upload_calls == [video_path]
     assert dummy.cleanup_calls == 1
     assert dummy.last_prompt is not None and "0..20" in dummy.last_prompt
+    assert "Previous chunk summary" in dummy.last_prompt
 
 
 def test_gemini_caption_model_merge_long_caption_uses_prompt(monkeypatch) -> None:
@@ -78,4 +82,3 @@ def test_parse_json_like_handles_code_fences() -> None:
 {"a": 1}
 ```"""
     assert _parse_json_like(raw) == {"a": 1}
-
