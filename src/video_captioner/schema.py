@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -155,14 +156,41 @@ def parse_chunk_caption_response(
     """
     if max_frame < 0:
         raise ValueError("max_frame must be >= 0")
+    if isinstance(obj, str):
+        # Sometimes models respond with a JSON string that itself contains JSON.
+        try:
+            obj = json.loads(obj)
+        except json.JSONDecodeError:
+            pass
+    if isinstance(obj, list):
+        # Some models mistakenly return a top-level array of spans.
+        inferred_summary_parts: list[str] = []
+        for item in obj:
+            if not isinstance(item, dict):
+                continue
+            caption = item.get("caption")
+            if isinstance(caption, str) and caption.strip():
+                inferred_summary_parts.append(caption.strip())
+            if len(inferred_summary_parts) >= 2:
+                break
+        obj = {
+            "chunk_summary": " ".join(inferred_summary_parts) if inferred_summary_parts else "Summary unavailable.",
+            "spans": obj,
+        }
+
     if not isinstance(obj, dict):
         raise ValueError("Chunk caption response must be a JSON object")
 
+    # Accept common key aliases from non-strict outputs.
     chunk_summary = obj.get("chunk_summary")
+    if chunk_summary is None:
+        chunk_summary = obj.get("summary") or obj.get("chunkSummary") or obj.get("chunk_summary_text")
     if not isinstance(chunk_summary, str) or not chunk_summary.strip():
         raise ValueError("chunk_summary must be a non-empty string")
 
     raw_spans = obj.get("spans")
+    if raw_spans is None:
+        raw_spans = obj.get("segments") or obj.get("events") or obj.get("captions")
     if not isinstance(raw_spans, list) or not raw_spans:
         raise ValueError("spans must be a non-empty list")
 

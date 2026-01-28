@@ -100,8 +100,9 @@ class GeminiCaptionModel:
             if attempt == 1:
                 prompt = (
                     base_prompt
-                    + "\n\nIMPORTANT: Ensure the JSON has "
-                    + f"{min_spans}..{max_spans} spans."
+                    + "\n\nIMPORTANT:"
+                    + "\n- Return a TOP-LEVEL JSON OBJECT with keys: chunk_summary (string), spans (array)."
+                    + f"\n- Ensure spans has {min_spans}..{max_spans} items."
                 )
 
             upload_path, cleanup_local = self._maybe_stage_for_vertex(video_path)
@@ -117,7 +118,11 @@ class GeminiCaptionModel:
                 self.gemini_client.cleanup_file(video_file)
                 cleanup_local()
 
-            resp, _ = parse_chunk_caption_response(raw, max_frame=ctx.max_frame)
+            try:
+                resp, _ = parse_chunk_caption_response(raw, max_frame=ctx.max_frame)
+            except Exception as exc:
+                last_error = exc
+                continue
             if min_spans <= len(resp.spans) <= max_spans:
                 return resp
             last_error = ValueError(

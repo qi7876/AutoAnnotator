@@ -25,17 +25,18 @@
 ## 运行方式
 
 ```bash
-uv run python scripts/generate_captions.py --dataset-root caption_data --output-root caption_outputs
+uv run python scripts/generate_captions.py --config video_captioner_config.toml
 ```
 
-常用参数：
-- `--sport/--event`：只处理某个 sport/event
-- `--max-events 5`：只跑前 N 个事件做验证
-- `--seed 123`：固定随机裁剪结果，便于复现
-- `--overwrite`：覆盖已生成结果
-- `--model fake`：离线调试（不调用 Gemini）
-- `--no-progress`：关闭 tqdm 进度条（默认仅在 TTY 下显示）
-- `--log-file /path/to/log`：指定日志文件（默认 `caption_outputs/_logs/video_captioner.log`）
+主要参数通过 `video_captioner_config.toml` 传递（默认模板在仓库根目录）。常用项：
+- `run.model = "fake"`：离线调试（不调用 Gemini）
+- `run.language = "en"`：输出英文（默认就是英文）
+- `run.sport/run.event`：只处理某个 sport/event
+- `run.max_events`：只跑前 N 个事件做验证
+- `run.seed`：固定随机裁剪结果，便于复现
+- `run.overwrite = true` 或命令行 `--overwrite`：覆盖已生成结果
+- `run.progress = true/false`：控制 tqdm 进度条（省略则仅在 TTY 下显示）
+- `logging.file`：指定日志文件（相对路径会拼到 `output_root/` 下）
 
 ## 输出目录结构
 

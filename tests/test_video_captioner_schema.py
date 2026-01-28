@@ -59,6 +59,17 @@ def test_parse_chunk_caption_response_accepts_exclusive_end_frame_convention() -
     assert [(s.start_frame, s.end_frame) for s in resp.spans] == [(0, 9), (10, 19), (20, 20)]
 
 
+def test_parse_chunk_caption_response_accepts_top_level_span_list() -> None:
+    raw = [
+        {"start_frame": 0, "end_frame": 10, "caption": "a"},
+        {"start_frame": 11, "end_frame": 20, "caption": "b"},
+    ]
+    resp, info = parse_chunk_caption_response(raw, max_frame=20)
+    assert info.mode in {"inclusive", "exclusive"}
+    assert resp.chunk_summary
+    assert [(s.start_frame, s.end_frame) for s in resp.spans] == [(0, 10), (11, 20)]
+
+
 def test_parse_chunk_caption_response_prefers_inclusive_when_only_last_is_off_by_one() -> None:
     raw = {
         "chunk_summary": "summary",
@@ -86,7 +97,7 @@ def test_long_caption_schema() -> None:
 def test_prompts_render() -> None:
     prompts = CaptionPrompts()
     chunk_prompt = prompts.render_chunk_prompt(
-        language="zh",
+        language="en",
         fps=30,
         total_frames=60,
         max_frame=59,
@@ -94,16 +105,16 @@ def test_prompts_render() -> None:
         min_spans=8,
         max_spans=18,
     )
-    assert "Language: zh" in chunk_prompt
+    assert "Language: en" in chunk_prompt
     assert "0..59" in chunk_prompt
     assert "Previous chunk summary" in chunk_prompt
     assert "between 8 and 18" in chunk_prompt
 
     merge_prompt = prompts.render_merge_prompt(
-        language="zh",
+        language="en",
         chunks_json=json.dumps([{"chunk_index": 0, "chunk_summary": "x"}]),
     )
-    assert "Language: zh" in merge_prompt
+    assert "Language: en" in merge_prompt
     assert "Input chunk captions" in merge_prompt
 
 

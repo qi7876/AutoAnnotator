@@ -20,7 +20,7 @@ uv sync --extra dev             # install dev tooling (pytest/ruff/black)
 uv run pytest                   # run full test suite
 uv run pytest tests/test_config.py
 uv run python scripts/batch_processing.py
-uv run python scripts/generate_captions.py --dataset-root caption_data --output-root caption_outputs --model fake
+uv run python scripts/generate_captions.py --config video_captioner_config.toml
 uv run ruff check .             # lint (dev extra)
 uv run black .                  # format (dev extra)
 ```

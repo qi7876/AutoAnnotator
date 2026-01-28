@@ -153,7 +153,7 @@ def process_event_video(
     output_root: Path,
     model: CaptionModel,
     rng: random.Random,
-    language: str = "zh",
+    language: str = "en",
     segment_min_sec: float = 5 * 60,
     segment_max_sec: float = 30 * 60,
     segment_fraction: float = 0.8,

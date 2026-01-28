@@ -1,0 +1,28 @@
+# Video Captioner configuration (TOML)
+#
+# This file is read by `uv run python scripts/generate_captions.py`.
+
+dataset_root = "caption_data"
+output_root = "caption_outputs"
+
+[run]
+model = "gemini"        # "gemini" or "fake"
+language = "en"         # output language hint for the model
+seed = 0                # optional
+sport = ""              # optional: only process one sport
+event = ""              # optional: only process one event
+max_events = 0          # optional: >0 to stop after N events
+overwrite = false       # overwrite existing outputs
+progress = true         # true/false, or omit for auto (TTY)
+
+[segment]
+min_sec = 300
+max_sec = 1800
+fraction = 0.8
+
+[chunk]
+sec = 60.0
+
+[logging]
+level = "INFO"
+# file = "video_captioner.log"  # relative paths are resolved under output_root
