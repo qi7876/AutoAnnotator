@@ -115,3 +115,71 @@ def test_process_event_video_writes_all_outputs(tmp_path: Path) -> None:
     assert segment_path2 == segment_path
     assert len(chunk_records2) == len(chunk_records)
     assert long_record2.response.segment_summary == long_record.response.segment_summary
+
+
+def test_process_event_video_resumes_after_interruption(tmp_path: Path) -> None:
+    dataset_root = tmp_path / "Dataset"
+    video_dir = dataset_root / "SportA" / "EventA"
+    video_dir.mkdir(parents=True)
+    video_path = video_dir / "1.mp4"
+    _make_test_video(video_path, duration_sec=8.0)
+
+    class _FailingModel(FakeCaptionModel):
+        def __init__(self, *, fail_after: int) -> None:
+            super().__init__()
+            self._calls = 0
+            self._fail_after = fail_after
+
+        def caption_chunk(self, **kwargs):
+            self._calls += 1
+            if self._calls > self._fail_after:
+                raise RuntimeError("simulated crash")
+            return super().caption_chunk(**kwargs)
+
+    out_root = tmp_path / "out"
+    # First run: crash after the first chunk. Should still persist partial chunk_captions.json.
+    try:
+        process_event_video(
+            event_video=EventVideo(sport="SportA", event="EventA", video_path=video_path),
+            output_root=out_root,
+            model=_FailingModel(fail_after=1),
+            rng=random.Random(0),
+            language="zh",
+            segment_min_sec=2.0,
+            segment_max_sec=10.0,
+            segment_fraction=0.8,
+            chunk_sec=3.0,
+            overwrite=True,
+        )
+    except RuntimeError:
+        pass
+
+    event_out = out_root / "SportA" / "EventA"
+    assert (event_out / "segment.mp4").is_file()
+    assert (event_out / "chunks").is_dir()
+    assert (event_out / "chunk_captions.json").is_file()
+    assert not (event_out / "long_caption.json").exists()
+
+    partial_payload = json.loads((event_out / "chunk_captions.json").read_text(encoding="utf-8"))
+    assert len(partial_payload) == 1
+    assert partial_payload[0]["chunk_index"] == 0
+
+    # Second run: resume from the existing segment/chunks and finish.
+    segment_path, chunk_records, _ = process_event_video(
+        event_video=EventVideo(sport="SportA", event="EventA", video_path=video_path),
+        output_root=out_root,
+        model=FakeCaptionModel(),
+        rng=random.Random(999),
+        language="zh",
+        segment_min_sec=2.0,
+        segment_max_sec=10.0,
+        segment_fraction=0.8,
+        chunk_sec=3.0,
+        overwrite=False,
+    )
+    assert segment_path.is_file()
+    assert len(chunk_records) >= 2
+    assert (event_out / "long_caption.json").is_file()
+
+    payload = json.loads((event_out / "chunk_captions.json").read_text(encoding="utf-8"))
+    assert {int(item["chunk_index"]) for item in payload} == set(range(len(payload)))

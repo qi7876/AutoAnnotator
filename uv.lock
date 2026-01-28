@@ -62,6 +62,7 @@ dependencies = [
     { name = "sam2" },
     { name = "scipy" },
     { name = "torch" },
+    { name = "tqdm" },
     { name = "typing-extensions" },
 ]
 
@@ -99,6 +100,7 @@ requires-dist = [
     { name = "sam2", specifier = ">=1.1.0" },
     { name = "scipy", specifier = ">=1.16.3" },
     { name = "torch", specifier = ">=2.9.1" },
+    { name = "tqdm", specifier = ">=4.66.0" },
     { name = "typing-extensions", specifier = ">=4.8.0" },
 ]
 provides-extras = ["dev"]

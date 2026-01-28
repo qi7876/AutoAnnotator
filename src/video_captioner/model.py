@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .prompts import CaptionPrompts
-from .schema import ChunkCaptionResponse, LongCaptionResponse
+from .schema import ChunkCaptionResponse, LongCaptionResponse, parse_chunk_caption_response
 
 
 @dataclass(frozen=True)
@@ -117,8 +117,7 @@ class GeminiCaptionModel:
                 self.gemini_client.cleanup_file(video_file)
                 cleanup_local()
 
-            resp = ChunkCaptionResponse.model_validate(raw)
-            resp.validate_against_max_frame(ctx.max_frame)
+            resp, _ = parse_chunk_caption_response(raw, max_frame=ctx.max_frame)
             if min_spans <= len(resp.spans) <= max_spans:
                 return resp
             last_error = ValueError(

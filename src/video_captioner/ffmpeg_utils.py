@@ -187,6 +187,14 @@ def keyframe_trim_copy(
         raise ValueError("start_sec must be >= 0")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    if output_path.exists() and not overwrite:
+        try:
+            if output_path.stat().st_size > 0:
+                return
+        except OSError:
+            return
+        # If the file exists but is empty/corrupt, force overwrite to recover.
+        overwrite = True
 
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error"]
     if overwrite:

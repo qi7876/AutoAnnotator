@@ -7,7 +7,12 @@ import json
 import pytest
 
 from video_captioner.prompts import CaptionPrompts
-from video_captioner.schema import ChunkCaptionResponse, DenseSegmentCaptionResponse, LongCaptionResponse
+from video_captioner.schema import (
+    ChunkCaptionResponse,
+    DenseSegmentCaptionResponse,
+    LongCaptionResponse,
+    parse_chunk_caption_response,
+)
 
 
 def test_chunk_caption_schema_rejects_overlapping_spans() -> None:
@@ -36,6 +41,35 @@ def test_chunk_caption_schema_validates_max_frame() -> None:
     resp.validate_against_max_frame(20)
     with pytest.raises(ValueError):
         resp.validate_against_max_frame(19)
+
+
+def test_parse_chunk_caption_response_accepts_exclusive_end_frame_convention() -> None:
+    # Simulate common model output that uses [start, end) half-open ranges and
+    # produces boundary ties (next.start_frame == prev.end_frame).
+    raw = {
+        "chunk_summary": "summary",
+        "spans": [
+            {"start_frame": 0, "end_frame": 10, "caption": "a"},
+            {"start_frame": 10, "end_frame": 20, "caption": "b"},
+            {"start_frame": 20, "end_frame": 21, "caption": "c"},
+        ],
+    }
+    resp, info = parse_chunk_caption_response(raw, max_frame=20)
+    assert info.mode == "exclusive"
+    assert [(s.start_frame, s.end_frame) for s in resp.spans] == [(0, 9), (10, 19), (20, 20)]
+
+
+def test_parse_chunk_caption_response_prefers_inclusive_when_only_last_is_off_by_one() -> None:
+    raw = {
+        "chunk_summary": "summary",
+        "spans": [
+            {"start_frame": 0, "end_frame": 10, "caption": "a"},
+            {"start_frame": 11, "end_frame": 21, "caption": "b"},
+        ],
+    }
+    resp, info = parse_chunk_caption_response(raw, max_frame=20)
+    assert info.mode == "inclusive"
+    assert [(s.start_frame, s.end_frame) for s in resp.spans] == [(0, 10), (11, 20)]
 
 
 def test_long_caption_schema() -> None:

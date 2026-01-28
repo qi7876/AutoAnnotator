@@ -13,6 +13,15 @@
 4. **连续性增强**：生成第 N 个短片段时，将第 N-1 个短片段的 `chunk_summary` 一起输入模型，以提高解说连贯性。
 5. **长片段密集 Caption**：程序将所有短片段的 `spans` 通过帧号平移映射回原视频，拼接为长片段的密集解说（不做“有损合并”）。
 
+## 增量恢复（Resume）
+
+- 运行过程中会**增量写入** `chunk_captions.json`（每完成一个 chunk 就落盘一次），因此进程中断后可直接重跑继续。
+- 默认（不加 `--overwrite`）行为：
+  - 若 `segment.mp4` / `chunks/chunk_*.mp4` 已存在：直接复用，不重新裁剪。
+  - 若 `chunk_captions.json` 中已有某些 `chunk_index`：跳过这些 chunk，继续生成剩余部分。
+  - 最终会补齐 `long_caption.json` 与 `run_meta.json`。
+- 若你希望完全重新生成该 sport/event 的所有结果：使用 `--overwrite`。
+
 ## 运行方式
 
 ```bash
@@ -25,6 +34,8 @@ uv run python scripts/generate_captions.py --dataset-root caption_data --output-
 - `--seed 123`：固定随机裁剪结果，便于复现
 - `--overwrite`：覆盖已生成结果
 - `--model fake`：离线调试（不调用 Gemini）
+- `--no-progress`：关闭 tqdm 进度条（默认仅在 TTY 下显示）
+- `--log-file /path/to/log`：指定日志文件（默认 `caption_outputs/_logs/video_captioner.log`）
 
 ## 输出目录结构
 

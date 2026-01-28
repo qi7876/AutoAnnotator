@@ -5,9 +5,17 @@ from __future__ import annotations
 import json
 import math
 import random
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Iterator
+
+from loguru import logger
+
+try:
+    from tqdm import tqdm  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover
+    tqdm = None  # type: ignore[assignment]
 
 from .ffmpeg_utils import (
     ChunkSpec,
@@ -18,7 +26,7 @@ from .ffmpeg_utils import (
     split_into_chunks,
 )
 from .model import CaptionModel, ChunkPromptContext
-from .schema import ChunkCaptionResponse, DenseSegmentCaptionResponse
+from .schema import ChunkCaptionResponse, DenseSegmentCaptionResponse, parse_chunk_caption_response
 
 
 @dataclass(frozen=True)
@@ -61,7 +69,52 @@ class LongCaptionRecord:
 
 def _write_json(path: Path, obj: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    tmp_path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp_path.replace(path)
+
+
+def _progress_enabled(enabled: bool | None) -> bool:
+    if enabled is None:
+        return sys.stderr.isatty()
+    return bool(enabled)
+
+
+def _load_json_list(path: Path) -> list[dict]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        logger.warning(f"Failed to parse JSON (will treat as empty and continue): {path}")
+        return []
+    if not isinstance(payload, list):
+        logger.warning(f"Expected JSON list but got {type(payload).__name__}: {path}")
+        return []
+    return [item for item in payload if isinstance(item, dict)]
+
+
+def _build_chunk_payload_item(
+    *,
+    chunk: ChunkSpec,
+    probe: VideoProbe,
+    resp: ChunkCaptionResponse,
+    frame_fps: float,
+) -> dict:
+    chunk_start_frame = int(round(probe.start_time_sec * frame_fps))
+    chunk_total_frames = max(1, int(round(probe.duration_sec * frame_fps)))
+    return {
+        "chunk_index": chunk.index,
+        "chunk_start_sec": chunk.start_sec,
+        "chunk_duration_sec": probe.duration_sec,
+        "chunk_start_time_sec": probe.start_time_sec,
+        "chunk_path": str(chunk.path),
+        "info": {
+            "original_starting_frame": chunk_start_frame,
+            "total_frames": chunk_total_frames,
+            "fps": frame_fps,
+        },
+        "chunk_summary": resp.chunk_summary,
+        "spans": [span.model_dump() for span in resp.spans],
+    }
 
 
 def process_event_video(
@@ -76,6 +129,7 @@ def process_event_video(
     segment_fraction: float = 0.8,
     chunk_sec: float = 60.0,
     overwrite: bool = False,
+    progress: bool | None = None,
 ) -> tuple[Path, list[ChunkCaptionRecord], LongCaptionRecord]:
     """
     Process a single {sport}/{event}/1.mp4 into:
@@ -93,59 +147,73 @@ def process_event_video(
     meta_path = out_dir / "run_meta.json"
     frame_fps = float(model.sampling_fps)
 
+    progress_on = _progress_enabled(progress)
+
     if (
         not overwrite
         and chunk_captions_path.exists()
         and long_caption_path.exists()
         and segment_path.exists()
     ):
-        chunk_payload = json.loads(chunk_captions_path.read_text(encoding="utf-8"))
-        chunk_records: list[ChunkCaptionRecord] = []
-        for item in chunk_payload:
-            info = item.get("info") or {}
-            fps_val = info.get("fps", item.get("fps"))
-            total_frames_val = info.get("total_frames", item.get("total_frames"))
-            chunk = ChunkSpec(
-                index=int(item["chunk_index"]),
-                start_sec=float(item["chunk_start_sec"]),
-                duration_sec=float(item["chunk_duration_sec"]),
-                path=Path(item["chunk_path"]),
-            )
-            probe = VideoProbe(
-                duration_sec=float(item["chunk_duration_sec"]),
-                start_time_sec=float(item.get("chunk_start_time_sec") or 0.0),
-                fps=float(fps_val) if fps_val is not None else None,
-                total_frames=int(total_frames_val) if total_frames_val is not None else None,
-            )
-            resp = ChunkCaptionResponse.model_validate(
-                {"chunk_summary": item["chunk_summary"], "spans": item["spans"]}
-            )
-            if probe.total_frames is not None:
-                resp.validate_against_max_frame(max(0, int(probe.total_frames) - 1))
-            chunk_records.append(ChunkCaptionRecord(chunk=chunk, probe=probe, response=resp))
+        try:
+            chunk_payload = _load_json_list(chunk_captions_path)
+            chunk_records: list[ChunkCaptionRecord] = []
+            for item in chunk_payload:
+                info = item.get("info") or {}
+                fps_val = info.get("fps", item.get("fps"))
+                total_frames_val = info.get("total_frames", item.get("total_frames"))
+                chunk = ChunkSpec(
+                    index=int(item["chunk_index"]),
+                    start_sec=float(item["chunk_start_sec"]),
+                    duration_sec=float(item["chunk_duration_sec"]),
+                    path=Path(item["chunk_path"]),
+                )
+                probe = VideoProbe(
+                    duration_sec=float(item["chunk_duration_sec"]),
+                    start_time_sec=float(item.get("chunk_start_time_sec") or 0.0),
+                    fps=float(fps_val) if fps_val is not None else None,
+                    total_frames=int(total_frames_val) if total_frames_val is not None else None,
+                )
+                max_frame = max(0, int(probe.total_frames or 1) - 1)
+                resp, _ = parse_chunk_caption_response(
+                    {"chunk_summary": item.get("chunk_summary"), "spans": item.get("spans")},
+                    max_frame=max_frame,
+                )
+                chunk_records.append(ChunkCaptionRecord(chunk=chunk, probe=probe, response=resp))
 
-        dense_resp = DenseSegmentCaptionResponse.model_validate(
-            json.loads(long_caption_path.read_text(encoding="utf-8"))
-        )
-        return segment_path, chunk_records, LongCaptionRecord(response=dense_resp)
+            dense_resp = DenseSegmentCaptionResponse.model_validate(
+                json.loads(long_caption_path.read_text(encoding="utf-8"))
+            )
+            return segment_path, chunk_records, LongCaptionRecord(response=dense_resp)
+        except Exception as exc:
+            logger.warning(f"Existing outputs look incomplete/corrupt; will resume instead: {exc}")
 
     src_probe = probe_video(event_video.video_path)
-    start_sec, dur_sec = select_random_segment(
-        src_probe.duration_sec,
-        rng=rng,
-        min_duration_sec=segment_min_sec,
-        max_duration_sec=segment_max_sec,
-        fraction_of_total=segment_fraction,
-    )
+    start_sec: float | None = None
+    dur_sec: float | None = None
 
-    keyframe_trim_copy(
-        input_path=event_video.video_path,
-        output_path=segment_path,
-        start_sec=start_sec,
-        duration_sec=dur_sec,
-        overwrite=overwrite,
-        preserve_timestamps=True,
-    )
+    if segment_path.exists() and not overwrite:
+        logger.info(f"Resuming with existing segment: {segment_path}")
+    else:
+        start_sec, dur_sec = select_random_segment(
+            src_probe.duration_sec,
+            rng=rng,
+            min_duration_sec=segment_min_sec,
+            max_duration_sec=segment_max_sec,
+            fraction_of_total=segment_fraction,
+        )
+
+        logger.info(
+            f"Extracting segment (requested start={start_sec:.2f}s, dur={dur_sec:.2f}s) -> {segment_path}"
+        )
+        keyframe_trim_copy(
+            input_path=event_video.video_path,
+            output_path=segment_path,
+            start_sec=start_sec,
+            duration_sec=dur_sec,
+            overwrite=overwrite,
+            preserve_timestamps=True,
+        )
 
     segment_probe = probe_video(segment_path)
     segment_start_frame = int(round(segment_probe.start_time_sec * frame_fps))
@@ -159,9 +227,31 @@ def process_event_video(
         preserve_timestamps=True,
     )
 
+    existing_by_index: dict[int, dict] = {}
+    if chunk_captions_path.exists() and not overwrite:
+        for item in _load_json_list(chunk_captions_path):
+            idx = item.get("chunk_index")
+            try:
+                idx_int = int(idx)
+            except (TypeError, ValueError):
+                continue
+            existing_by_index[idx_int] = item
+        if existing_by_index:
+            logger.info(f"Found {len(existing_by_index)} existing chunk caption(s); will resume.")
+
     chunk_records: list[ChunkCaptionRecord] = []
     previous_summary = ""
-    for chunk in chunks:
+    chunks_iter: Iterable[ChunkSpec] = chunks
+    if tqdm is not None and progress_on:
+        chunks_iter = tqdm(
+            chunks,
+            desc=f"{event_video.sport}/{event_video.event}",
+            unit="chunk",
+            leave=False,
+        )
+
+    wrote_chunk_captions = False
+    for chunk in chunks_iter:
         chunk_probe = probe_video(chunk.path)
         chunk_total_frames = max(1, int(round(chunk_probe.duration_sec * frame_fps)))
         duration_min = max(0.0, float(chunk_probe.duration_sec) / 60.0)
@@ -172,51 +262,65 @@ def process_event_video(
             total_frames=chunk_total_frames,
             max_frame=max(0, chunk_total_frames - 1),
         )
-        resp = model.caption_chunk(
-            video_path=chunk.path,
-            ctx=ctx,
-            language=language,
-            previous_summary=previous_summary,
-            min_spans=min_spans,
-            max_spans=max_spans,
-        )
+        existing_item = existing_by_index.get(chunk.index) if not overwrite else None
+        if existing_item is not None:
+            resp, info = parse_chunk_caption_response(
+                {"chunk_summary": existing_item.get("chunk_summary"), "spans": existing_item.get("spans")},
+                max_frame=ctx.max_frame,
+            )
+            if info.mode != "inclusive" or info.clamped or info.shifted or info.dropped:
+                logger.warning(
+                    f"Normalized existing chunk_{chunk.index:03d} spans "
+                    f"(mode={info.mode}, clamped={info.clamped}, shifted={info.shifted}, dropped={info.dropped})."
+                )
+        else:
+            logger.info(
+                f"Captioning chunk_{chunk.index:03d} ({chunk_probe.duration_sec:.2f}s, max_frame={ctx.max_frame})"
+            )
+            resp = model.caption_chunk(
+                video_path=chunk.path,
+                ctx=ctx,
+                language=language,
+                previous_summary=previous_summary,
+                min_spans=min_spans,
+                max_spans=max_spans,
+            )
+
         previous_summary = resp.chunk_summary
         chunk_records.append(ChunkCaptionRecord(chunk=chunk, probe=chunk_probe, response=resp))
 
-    # Persist short chunk captions (with metadata) for later audits.
-    chunk_payload = []
-    for rec in chunk_records:
-        chunk_start_frame = int(round(rec.probe.start_time_sec * frame_fps))
-        chunk_total_frames = max(1, int(round(rec.probe.duration_sec * frame_fps)))
-        chunk_payload.append(
-            {
-                "chunk_index": rec.chunk.index,
-                "chunk_start_sec": rec.chunk.start_sec,
-                "chunk_duration_sec": rec.probe.duration_sec,
-                "chunk_start_time_sec": rec.probe.start_time_sec,
-                "chunk_path": str(rec.chunk.path),
-                "info": {
-                    "original_starting_frame": chunk_start_frame,
-                    "total_frames": chunk_total_frames,
-                    "fps": frame_fps,
-                },
-                "chunk_summary": rec.response.chunk_summary,
-                "spans": [span.model_dump() for span in rec.response.spans],
-            }
-        )
-    _write_json(chunk_captions_path, chunk_payload)
+        item = _build_chunk_payload_item(chunk=chunk, probe=chunk_probe, resp=resp, frame_fps=frame_fps)
+        if existing_item != item:
+            existing_by_index[chunk.index] = item
+            wrote_chunk_captions = True
+            chunk_payload = [existing_by_index[i] for i in sorted(existing_by_index)]
+            _write_json(chunk_captions_path, chunk_payload)
+
+    # Persist final short chunk captions (with metadata) for later audits.
+    chunk_payload = [_build_chunk_payload_item(chunk=rec.chunk, probe=rec.probe, resp=rec.response, frame_fps=frame_fps) for rec in chunk_records]
+    if overwrite or wrote_chunk_captions or not chunk_captions_path.exists():
+        _write_json(chunk_captions_path, chunk_payload)
 
     dense_spans = []
     summary_lines = []
+    segment_max_frame = segment_start_frame + segment_total_frames - 1
     for item in chunk_payload:
         info = item["info"]
         base = int(info["original_starting_frame"])
         summary_lines.append(f'chunk_{int(item["chunk_index"]):03d}: {item["chunk_summary"]}')
         for span in item["spans"]:
+            start = base + int(span["start_frame"])
+            end = base + int(span["end_frame"])
+            if start < segment_start_frame:
+                start = segment_start_frame
+            if end > segment_max_frame:
+                end = segment_max_frame
+            if end < start:
+                continue
             dense_spans.append(
                 {
-                    "start_frame": base + int(span["start_frame"]),
-                    "end_frame": base + int(span["end_frame"]),
+                    "start_frame": start,
+                    "end_frame": end,
                     "caption": span["caption"],
                     "chunk_index": int(item["chunk_index"]),
                 }
@@ -234,7 +338,8 @@ def process_event_video(
     }
     dense_resp = DenseSegmentCaptionResponse.model_validate(dense_payload)
     long_record = LongCaptionRecord(response=dense_resp)
-    _write_json(long_caption_path, dense_payload)
+    if overwrite or wrote_chunk_captions or not long_caption_path.exists():
+        _write_json(long_caption_path, dense_payload)
 
     _write_json(
         meta_path,
@@ -280,12 +385,19 @@ def process_many(
     segment_max_sec: float = 30 * 60,
     segment_fraction: float = 0.8,
     chunk_sec: float = 60.0,
+    progress: bool | None = None,
 ) -> list[tuple[EventVideo, Path]]:
     rng = random.Random(seed)
     dataset_root = resolve_dataset_root(dataset_root)
 
     processed: list[tuple[EventVideo, Path]] = []
-    for ev in iter_event_videos(dataset_root):
+    progress_on = _progress_enabled(progress)
+
+    events_iter: Iterable[EventVideo] = iter_event_videos(dataset_root)
+    if tqdm is not None and progress_on:
+        events_iter = tqdm(events_iter, desc="Events", unit="event")
+
+    for ev in events_iter:
         if sport is not None and ev.sport != sport:
             continue
         if event is not None and ev.event != event:
@@ -302,6 +414,7 @@ def process_many(
             segment_fraction=segment_fraction,
             chunk_sec=chunk_sec,
             overwrite=overwrite,
+            progress=progress,
         )
         processed.append((ev, segment_path))
         if max_events is not None and len(processed) >= max_events:

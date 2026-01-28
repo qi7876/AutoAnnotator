@@ -6,8 +6,11 @@ Output requirements:
 
 - Return valid JSON only. Do NOT wrap the JSON in Markdown code fences.
 - Language: {language}
-- The clip has {total_frames} frames at {fps} FPS (0-indexed).
-- Valid clip frame indices: 0..{max_frame} (inclusive), 0-indexed.
+- Frame indexing (IMPORTANT):
+  - `total_frames` = number of frames (count), NOT the last index.
+  - Valid frame indices are **0..{max_frame}** (inclusive), where **max_frame = total_frames - 1**.
+  - `start_frame` and `end_frame` are **inclusive** indices. Do NOT use half-open ranges like `[start_frame, end_frame)`.
+  - NEVER output `end_frame = total_frames` (it must be `<= {max_frame}`).
 
 Continuity:
 

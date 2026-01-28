@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from .logging_utils import configure_logging
 from .model import FakeCaptionModel, GeminiCaptionModel
 from .pipeline import process_many, resolve_dataset_root
 
@@ -48,6 +49,22 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Overwrite existing outputs for an event.",
     )
+    parser.add_argument(
+        "--no-progress",
+        action="store_true",
+        help="Disable tqdm progress bars (default: auto when stderr is a TTY).",
+    )
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        help="Logging level (default: INFO).",
+    )
+    parser.add_argument(
+        "--log-file",
+        type=Path,
+        default=None,
+        help="Write logs to this file (default: {output_root}/_logs/video_captioner.log).",
+    )
 
     # Advanced knobs (useful for debugging; defaults satisfy the spec).
     parser.add_argument(
@@ -84,6 +101,11 @@ def main(argv: list[str] | None = None) -> int:
     if not dataset_root.is_dir():
         raise SystemExit(f"Dataset root not found: {dataset_root}")
 
+    log_file = args.log_file
+    if log_file is None:
+        log_file = Path(args.output_root) / "_logs" / "video_captioner.log"
+    configure_logging(log_file=Path(log_file), level=str(args.log_level))
+
     if args.model == "fake":
         model = FakeCaptionModel()
     else:
@@ -103,6 +125,7 @@ def main(argv: list[str] | None = None) -> int:
         segment_max_sec=float(args.segment_max_sec),
         segment_fraction=float(args.segment_fraction),
         chunk_sec=float(args.chunk_sec),
+        progress=None if not args.no_progress else False,
     )
 
     print(f"Processed {len(processed)} event(s). Output root: {args.output_root}")
@@ -111,4 +134,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
