@@ -172,7 +172,7 @@ def keyframe_trim_copy(
     duration_sec: float,
     overwrite: bool = False,
     preserve_timestamps: bool = False,
-) -> None:
+) -> bool:
     """
     Trim by keyframe-aligned seeking and stream-copy (no re-encode).
 
@@ -188,12 +188,18 @@ def keyframe_trim_copy(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     if output_path.exists() and not overwrite:
+        should_rebuild = False
         try:
-            if output_path.stat().st_size > 0:
-                return
-        except OSError:
-            return
-        # If the file exists but is empty/corrupt, force overwrite to recover.
+            if output_path.stat().st_size <= 0:
+                should_rebuild = True
+            else:
+                # ffprobe validation: non-empty doesn't mean playable.
+                probe_video(output_path)
+        except Exception:
+            should_rebuild = True
+
+        if not should_rebuild:
+            return False
         overwrite = True
 
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error"]
@@ -230,6 +236,7 @@ def keyframe_trim_copy(
             str(output_path),
         ]
     _run(cmd)
+    return True
 
 
 @dataclass(frozen=True)

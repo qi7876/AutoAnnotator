@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import math
 import random
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -92,6 +93,35 @@ def _load_json_list(path: Path) -> list[dict]:
     return [item for item in payload if isinstance(item, dict)]
 
 
+def _load_json_dict(path: Path) -> dict:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        logger.warning(f"Failed to parse JSON (will treat as empty and continue): {path}")
+        return {}
+    if not isinstance(payload, dict):
+        logger.warning(f"Expected JSON object but got {type(payload).__name__}: {path}")
+        return {}
+    return payload
+
+
+def _coerce_float(value: object) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _segment_duration_too_short(*, actual_sec: float, target_sec: float) -> bool:
+    if target_sec <= 0:
+        return False
+    ratio = actual_sec / target_sec
+    min_ratio = 0.8 if target_sec >= 60.0 else 0.5
+    return ratio < min_ratio
+
+
 def _build_chunk_payload_item(
     *,
     chunk: ChunkSpec,
@@ -149,14 +179,107 @@ def process_event_video(
 
     progress_on = _progress_enabled(progress)
 
-    if (
-        not overwrite
-        and chunk_captions_path.exists()
-        and long_caption_path.exists()
-        and segment_path.exists()
-    ):
+    src_probe = probe_video(event_video.video_path)
+
+    meta_existing = _load_json_dict(meta_path) if meta_path.exists() else {}
+    recorded_start_sec = _coerce_float(meta_existing.get("segment_start_sec_requested"))
+    recorded_dur_sec = _coerce_float(meta_existing.get("segment_duration_sec_target"))
+
+    start_sec: float | None = None
+    dur_sec: float | None = None
+
+    segment_probe: VideoProbe | None = None
+    segment_needs_recut = False
+    if segment_path.exists() and not overwrite:
         try:
+            segment_probe = probe_video(segment_path)
+        except Exception as exc:
+            logger.warning(f"Segment exists but is not playable; will re-extract: {exc}")
+            segment_needs_recut = True
+        else:
+            if recorded_dur_sec is not None and _segment_duration_too_short(
+                actual_sec=float(segment_probe.duration_sec),
+                target_sec=float(recorded_dur_sec),
+            ):
+                logger.warning(
+                    f"Segment duration is too short ({segment_probe.duration_sec:.2f}s) "
+                    f"vs expected target ({recorded_dur_sec:.2f}s); will re-extract."
+                )
+                segment_needs_recut = True
+
+    # Ensure we have a valid segment file before proceeding (and before any early-return).
+    if overwrite or segment_needs_recut or not segment_path.exists():
+        use_recorded = (
+            not overwrite and recorded_start_sec is not None and recorded_dur_sec is not None
+        )
+        if use_recorded:
+            start_sec = float(recorded_start_sec)
+            dur_sec = float(recorded_dur_sec)
+        else:
+            start_sec, dur_sec = select_random_segment(
+                src_probe.duration_sec,
+                rng=rng,
+                min_duration_sec=segment_min_sec,
+                max_duration_sec=segment_max_sec,
+                fraction_of_total=segment_fraction,
+            )
+
+        _write_json(
+            meta_path,
+            {
+                **meta_existing,
+                "source_video": str(event_video.video_path),
+                "source_duration_sec": src_probe.duration_sec,
+                "segment_start_sec_requested": start_sec,
+                "segment_duration_sec_target": dur_sec,
+                "chunk_sec_target": chunk_sec,
+                "language": language,
+                "status": "segment_requested",
+            },
+        )
+
+        logger.info(
+            f"Extracting segment (requested start={start_sec:.2f}s, dur={dur_sec:.2f}s) -> {segment_path}"
+        )
+
+        # If we cannot reuse the recorded request, this segment will not match existing outputs.
+        if not use_recorded and not overwrite:
+            if chunks_dir.exists():
+                shutil.rmtree(chunks_dir, ignore_errors=True)
+            for path in (chunk_captions_path, long_caption_path):
+                try:
+                    path.unlink()
+                except FileNotFoundError:
+                    pass
+
+        keyframe_trim_copy(
+            input_path=event_video.video_path,
+            output_path=segment_path,
+            start_sec=float(start_sec),
+            duration_sec=float(dur_sec),
+            overwrite=True if (overwrite or segment_needs_recut) else overwrite,
+            preserve_timestamps=True,
+        )
+        segment_probe = probe_video(segment_path)
+    else:
+        assert segment_probe is not None
+        logger.info(f"Resuming with existing segment: {segment_path}")
+
+    # Fast path: if all outputs exist and media files are valid, load and return.
+    if not overwrite and chunk_captions_path.exists() and long_caption_path.exists():
+        try:
+            probe_video(segment_path)
             chunk_payload = _load_json_list(chunk_captions_path)
+            chunk_paths = []
+            for item in chunk_payload:
+                p = Path(str(item.get("chunk_path") or ""))
+                if not p.is_file():
+                    raise FileNotFoundError(p)
+                probe_video(p)
+                chunk_paths.append(p)
+            if not chunk_payload:
+                raise ValueError("chunk_captions.json is empty")
+
             chunk_records: list[ChunkCaptionRecord] = []
             for item in chunk_payload:
                 info = item.get("info") or {}
@@ -188,34 +311,6 @@ def process_event_video(
         except Exception as exc:
             logger.warning(f"Existing outputs look incomplete/corrupt; will resume instead: {exc}")
 
-    src_probe = probe_video(event_video.video_path)
-    start_sec: float | None = None
-    dur_sec: float | None = None
-
-    if segment_path.exists() and not overwrite:
-        logger.info(f"Resuming with existing segment: {segment_path}")
-    else:
-        start_sec, dur_sec = select_random_segment(
-            src_probe.duration_sec,
-            rng=rng,
-            min_duration_sec=segment_min_sec,
-            max_duration_sec=segment_max_sec,
-            fraction_of_total=segment_fraction,
-        )
-
-        logger.info(
-            f"Extracting segment (requested start={start_sec:.2f}s, dur={dur_sec:.2f}s) -> {segment_path}"
-        )
-        keyframe_trim_copy(
-            input_path=event_video.video_path,
-            output_path=segment_path,
-            start_sec=start_sec,
-            duration_sec=dur_sec,
-            overwrite=overwrite,
-            preserve_timestamps=True,
-        )
-
-    segment_probe = probe_video(segment_path)
     segment_start_frame = int(round(segment_probe.start_time_sec * frame_fps))
     segment_total_frames = max(1, int(round(segment_probe.duration_sec * frame_fps)))
 
