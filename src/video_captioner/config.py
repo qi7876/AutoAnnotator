@@ -13,7 +13,7 @@ class SegmentConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     min_sec: float = Field(default=5 * 60, gt=0)
-    max_sec: float = Field(default=30 * 60, gt=0)
+    max_sec: float = Field(default=20 * 60, gt=0)
     fraction: float = Field(default=0.8, gt=0, lt=1)
 
 
@@ -53,6 +53,14 @@ class RunConfig(BaseModel):
         return self
 
 
+class RetryConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    max_attempts: int = Field(default=5, ge=1)
+    wait_sec: float = Field(default=20.0, ge=0)
+    jitter_sec: float = Field(default=2.0, ge=0)
+
+
 class VideoCaptionerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -63,6 +71,7 @@ class VideoCaptionerConfig(BaseModel):
     segment: SegmentConfig = Field(default_factory=SegmentConfig)
     chunk: ChunkConfig = Field(default_factory=ChunkConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    retry: RetryConfig = Field(default_factory=RetryConfig)
 
     @classmethod
     def load(cls, path: Path) -> "VideoCaptionerConfig":

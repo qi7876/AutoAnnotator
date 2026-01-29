@@ -6,7 +6,7 @@
 
 1. **抽取长片段（关键帧裁剪，不重新编码）**
    - 若原视频时长 < 5 分钟：直接使用全视频。
-   - 否则：目标片段时长随原视频变长而变长（默认 `0.8 * 原时长`），并限制在 `[5min, 30min]`。
+   - 否则：目标片段时长随原视频变长而变长（默认 `0.8 * 原时长`），并限制在 `[5min, 20min]`。
    - 片段在原视频中的起点随机。
 2. **长片段再切分为 ~1 分钟短片段**（同样使用 `ffmpeg -c copy` 的关键帧裁剪机制）。
 3. **对每个短片段生成密集结构化 Caption**（JSON：帧区间 + Caption；约 8–18 条/分钟），同时输出该短片段的 `chunk_summary`。
@@ -37,6 +37,7 @@ uv run python scripts/generate_captions.py --config video_captioner_config.toml
 - `run.overwrite = true` 或命令行 `--overwrite`：覆盖已生成结果
 - `run.progress = true/false`：控制 tqdm 进度条（省略则仅在 TTY 下显示）
 - `logging.file`：指定日志文件（相对路径会拼到 `output_root/` 下）
+- `retry.*`：当遇到 429 RESOURCE_EXHAUSTED（速率限制）时，按配置等待并重试
 
 ## 输出目录结构
 

@@ -56,7 +56,11 @@ def main(argv: list[str] | None = None) -> int:
     if cfg.run.model == "fake":
         model = FakeCaptionModel()
     else:
-        model = GeminiCaptionModel()
+        model = GeminiCaptionModel(
+            retry_max_attempts=int(cfg.retry.max_attempts),
+            retry_wait_sec=float(cfg.retry.wait_sec),
+            retry_jitter_sec=float(cfg.retry.jitter_sec),
+        )
 
     processed = process_many(
         dataset_root=dataset_root,

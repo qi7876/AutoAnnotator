@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from video_captioner.model import ChunkPromptContext, GeminiCaptionModel, _parse_json_like
 
 
@@ -54,6 +56,49 @@ def test_gemini_caption_model_caption_chunk_renders_prompt_and_cleans_up(tmp_pat
     assert dummy.cleanup_calls == 1
     assert dummy.last_prompt is not None and "0..20" in dummy.last_prompt
     assert "Previous chunk summary" in dummy.last_prompt
+
+
+def test_gemini_caption_model_retries_on_rate_limit(monkeypatch, tmp_path: Path) -> None:
+    class _RateLimitDummy(_DummyGeminiClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.annotate_calls = 0
+
+        def annotate_video(self, video_file, prompt: str, timeout=None):
+            self.annotate_calls += 1
+            if self.annotate_calls == 1:
+                raise RuntimeError("429 RESOURCE_EXHAUSTED")
+            return super().annotate_video(video_file, prompt, timeout=timeout)
+
+    dummy = _RateLimitDummy()
+    model = GeminiCaptionModel(
+        gemini_client=dummy,
+        retry_max_attempts=3,
+        retry_wait_sec=0.01,
+        retry_jitter_sec=0.0,
+    )
+
+    slept: list[float] = []
+
+    def _fake_sleep(sec: float) -> None:
+        slept.append(sec)
+
+    monkeypatch.setattr("video_captioner.model.time.sleep", _fake_sleep)
+
+    video_path = tmp_path / "chunk.mp4"
+    video_path.write_bytes(b"fake")
+
+    resp = model.caption_chunk(
+        video_path=video_path,
+        ctx=ChunkPromptContext(fps=30.0, total_frames=21, max_frame=20),
+        language="en",
+        previous_summary="",
+        min_spans=1,
+        max_spans=5,
+    )
+    assert resp.chunk_summary == "summary"
+    assert dummy.annotate_calls == 2
+    assert slept == pytest.approx([0.01])
 
 
 def test_gemini_caption_model_merge_long_caption_uses_prompt(monkeypatch) -> None:

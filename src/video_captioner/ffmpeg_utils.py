@@ -131,7 +131,7 @@ def select_random_segment(
     *,
     rng: random.Random,
     min_duration_sec: float = 5 * 60,
-    max_duration_sec: float = 30 * 60,
+    max_duration_sec: float = 20 * 60,
     fraction_of_total: float = 0.8,
 ) -> tuple[float, float]:
     """

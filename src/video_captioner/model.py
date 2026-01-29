@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import shutil
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
+
+from loguru import logger
 
 from .prompts import CaptionPrompts
 from .schema import ChunkCaptionResponse, LongCaptionResponse, parse_chunk_caption_response
@@ -55,6 +59,9 @@ class GeminiCaptionModel:
         prompts: CaptionPrompts | None = None,
         video_timeout_sec: int | None = None,
         text_timeout_sec: int | None = None,
+        retry_max_attempts: int = 5,
+        retry_wait_sec: float = 20.0,
+        retry_jitter_sec: float = 2.0,
     ) -> None:
         if gemini_client is None:
             from auto_annotator.annotators.gemini_client import GeminiClient
@@ -64,12 +71,51 @@ class GeminiCaptionModel:
         self.prompts = prompts or CaptionPrompts()
         self.video_timeout_sec = video_timeout_sec
         self.text_timeout_sec = text_timeout_sec
+        self.retry_max_attempts = max(1, int(retry_max_attempts))
+        self.retry_wait_sec = max(0.0, float(retry_wait_sec))
+        self.retry_jitter_sec = max(0.0, float(retry_jitter_sec))
         sampling_fps = getattr(
             getattr(getattr(gemini_client, "config", None), "gemini", None),
             "video_sampling_fps",
             10,
         )
         self.sampling_fps = float(sampling_fps)
+
+    def _is_rate_limit_error(self, exc: Exception) -> bool:
+        msg = str(exc).upper()
+        if "RESOURCE_EXHAUSTED" in msg and "429" in msg:
+            return True
+        if "RESOURCE_EXHAUSTED" in msg:
+            return True
+        if "429" in msg and "RATE" in msg:
+            return True
+        if "429" in msg:
+            return True
+        return False
+
+    def _sleep_retry(self, *, attempt: int, exc: Exception, what: str) -> None:
+        if self.retry_wait_sec <= 0:
+            return
+        jitter = random.uniform(0.0, self.retry_jitter_sec) if self.retry_jitter_sec > 0 else 0.0
+        wait = self.retry_wait_sec + jitter
+        logger.warning(
+            f"{what} rate limit encountered (attempt {attempt}/{self.retry_max_attempts}); "
+            f"sleeping {wait:.1f}s before retry. Error: {exc}"
+        )
+        time.sleep(wait)
+
+    def _call_with_retries(self, func, *, what: str):
+        last_exc: Exception | None = None
+        for attempt in range(1, self.retry_max_attempts + 1):
+            try:
+                return func()
+            except Exception as exc:
+                last_exc = exc
+                if not self._is_rate_limit_error(exc) or attempt >= self.retry_max_attempts:
+                    raise
+                self._sleep_retry(attempt=attempt, exc=exc, what=what)
+        assert last_exc is not None
+        raise last_exc
 
     def caption_chunk(
         self,
@@ -106,10 +152,16 @@ class GeminiCaptionModel:
                 )
 
             upload_path, cleanup_local = self._maybe_stage_for_vertex(video_path)
-            video_file = self.gemini_client.upload_video(upload_path)
+            video_file = self._call_with_retries(
+                lambda: self.gemini_client.upload_video(upload_path),
+                what="upload_video",
+            )
             try:
-                raw = self.gemini_client.annotate_video(
-                    video_file, prompt, timeout=self.video_timeout_sec
+                raw = self._call_with_retries(
+                    lambda: self.gemini_client.annotate_video(
+                        video_file, prompt, timeout=self.video_timeout_sec
+                    ),
+                    what="annotate_video",
                 )
             except Exception as exc:
                 last_error = exc

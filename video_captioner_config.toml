@@ -17,7 +17,7 @@ progress = true         # true/false, or omit for auto (TTY)
 
 [segment]
 min_sec = 300
-max_sec = 1800
+max_sec = 1200
 fraction = 0.8
 
 [chunk]
@@ -26,3 +26,9 @@ sec = 60.0
 [logging]
 level = "INFO"
 # file = "video_captioner.log"  # relative paths are resolved under output_root
+
+[retry]
+# Retry on 429 RESOURCE_EXHAUSTED rate limits.
+max_attempts = 5
+wait_sec = 20.0
+jitter_sec = 2.0
