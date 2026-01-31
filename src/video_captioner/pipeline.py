@@ -64,16 +64,22 @@ def shuffle_events_even_across_sports(
     *,
     rng: random.Random,
 ) -> list[EventVideo]:
-    """Shuffle events while interleaving sports for more uniform coverage."""
+    """Shuffle events while interleaving sports for more uniform coverage.
+
+    Randomization order:
+    1) randomize sport order
+    2) randomize event order within each sport
+    3) round-robin interleave by sport
+    """
     by_sport: dict[str, list[EventVideo]] = {}
     for ev in events:
         by_sport.setdefault(ev.sport, []).append(ev)
 
-    for sport_events in by_sport.values():
-        rng.shuffle(sport_events)
-
     sports = list(by_sport.keys())
     rng.shuffle(sports)
+
+    for sport in sports:
+        rng.shuffle(by_sport[sport])
 
     ordered: list[EventVideo] = []
     while True:
