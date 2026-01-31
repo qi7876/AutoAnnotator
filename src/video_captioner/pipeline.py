@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import random
@@ -28,6 +29,8 @@ from .ffmpeg_utils import (
 )
 from .model import CaptionModel, ChunkPromptContext
 from .schema import ChunkCaptionResponse, DenseSegmentCaptionResponse, parse_chunk_caption_response
+from .progress import EventKey
+from .state import default_state_path, load_state, save_state
 
 
 @dataclass(frozen=True)
@@ -54,6 +57,43 @@ def iter_event_videos(dataset_root: Path, *, filename: str = "1.mp4") -> Iterato
             video_path = event_dir / filename
             if video_path.is_file():
                 yield EventVideo(sport=sport_dir.name, event=event_dir.name, video_path=video_path)
+
+
+def shuffle_events_even_across_sports(
+    events: list[EventVideo],
+    *,
+    rng: random.Random,
+) -> list[EventVideo]:
+    """Shuffle events while interleaving sports for more uniform coverage."""
+    by_sport: dict[str, list[EventVideo]] = {}
+    for ev in events:
+        by_sport.setdefault(ev.sport, []).append(ev)
+
+    for sport_events in by_sport.values():
+        rng.shuffle(sport_events)
+
+    sports = list(by_sport.keys())
+    rng.shuffle(sports)
+
+    ordered: list[EventVideo] = []
+    while True:
+        any_added = False
+        for sport in sports:
+            sport_events = by_sport.get(sport)
+            if not sport_events:
+                continue
+            ordered.append(sport_events.pop(0))
+            any_added = True
+        if not any_added:
+            break
+    return ordered
+
+
+def _derive_event_seed(*, base_seed: int, sport: str, event: str) -> int:
+    """Derive a stable per-event seed so shuffling does not affect segment randomness."""
+    msg = f"{base_seed}|{sport}|{event}".encode("utf-8")
+    digest = hashlib.sha256(msg).digest()
+    return int.from_bytes(digest[:8], byteorder="big", signed=False)
 
 
 @dataclass(frozen=True)
@@ -482,27 +522,100 @@ def process_many(
     chunk_sec: float = 60.0,
     progress: bool | None = None,
 ) -> list[tuple[EventVideo, Path]]:
-    rng = random.Random(seed)
+    schedule_rng = random.Random(seed)
     dataset_root = resolve_dataset_root(dataset_root)
 
     processed: list[tuple[EventVideo, Path]] = []
     progress_on = _progress_enabled(progress)
 
-    events_iter: Iterable[EventVideo] = iter_event_videos(dataset_root)
-    if tqdm is not None and progress_on:
-        events_iter = tqdm(events_iter, desc="Events", unit="event")
-
-    for ev in events_iter:
+    # Collect all candidate events and build a more uniform schedule by interleaving sports.
+    all_events: list[EventVideo] = []
+    for ev in iter_event_videos(dataset_root):
         if sport is not None and ev.sport != sport:
             continue
         if event is not None and ev.event != event:
             continue
+        all_events.append(ev)
+
+    # Persist run state under output_root so we can resume after interruptions.
+    state_path = default_state_path(output_root)
+    state = load_state(state_path)
+
+    def _long_caption_path(ev: EventVideo) -> Path:
+        return output_root / ev.sport / ev.event / "long_caption.json"
+
+    def _event_done(ev: EventVideo) -> bool:
+        return _long_caption_path(ev).is_file()
+
+    # Reconcile state with filesystem (covers crashes after writing long_caption.json).
+    changed = False
+    for ev in all_events:
+        if _event_done(ev):
+            key = EventKey(sport=ev.sport, event=ev.event)
+            if key not in state.processed:
+                state.processed.add(key)
+                changed = True
+    if state.current is not None and state.current in state.processed:
+        state.current = None
+        changed = True
+    if changed:
+        save_state(state_path, state)
+
+    key_to_event = {EventKey(sport=ev.sport, event=ev.event): ev for ev in all_events}
+
+    if overwrite:
+        candidates = list(all_events)
+    else:
+        candidates = [ev for ev in all_events if not _event_done(ev)]
+
+    schedule: list[EventVideo] = []
+
+    # First, resume the last in-progress event (if any).
+    if state.current is not None:
+        cur_ev = key_to_event.get(state.current)
+        if cur_ev is not None and cur_ev in candidates:
+            schedule.append(cur_ev)
+            candidates.remove(cur_ev)
+
+    # Then, prioritize events with partial outputs already on disk.
+    partial: list[EventVideo] = []
+    fresh: list[EventVideo] = []
+    for ev in candidates:
+        event_out = output_root / ev.sport / ev.event
+        is_partial = (
+            event_out.is_dir()
+            and not (event_out / "long_caption.json").is_file()
+            and (
+                (event_out / "chunk_captions.json").is_file()
+                or (event_out / "segment.mp4").is_file()
+                or (event_out / "run_meta.json").is_file()
+                or (event_out / "chunks").is_dir()
+            )
+        )
+        (partial if is_partial else fresh).append(ev)
+
+    schedule.extend(shuffle_events_even_across_sports(partial, rng=schedule_rng))
+    schedule.extend(shuffle_events_even_across_sports(fresh, rng=schedule_rng))
+
+    events_iter: Iterable[EventVideo] = schedule
+    if tqdm is not None and progress_on:
+        events_iter = tqdm(events_iter, desc="Events", unit="event")
+
+    for ev in events_iter:
+        # Record current event first so a crash can resume it.
+        current_key = EventKey(sport=ev.sport, event=ev.event)
+        state.current = current_key
+        save_state(state_path, state)
 
         segment_path, _, _ = process_event_video(
             event_video=ev,
             output_root=output_root,
             model=model,
-            rng=rng,
+            rng=(
+                random.Random(_derive_event_seed(base_seed=seed, sport=ev.sport, event=ev.event))
+                if seed is not None
+                else schedule_rng
+            ),
             language=language,
             segment_min_sec=segment_min_sec,
             segment_max_sec=segment_max_sec,
@@ -512,6 +625,10 @@ def process_many(
             progress=progress,
         )
         processed.append((ev, segment_path))
+
+        state.processed.add(current_key)
+        state.current = None
+        save_state(state_path, state)
         if max_events is not None and len(processed) >= max_events:
             break
     return processed

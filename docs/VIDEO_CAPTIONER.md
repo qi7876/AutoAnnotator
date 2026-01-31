@@ -16,6 +16,9 @@
 ## 增量恢复（Resume）
 
 - 运行过程中会**增量写入** `chunk_captions.json`（每完成一个 chunk 就落盘一次），因此进程中断后可直接重跑继续。
+- 处理顺序默认会**打乱并跨 sport 交错**（更均匀覆盖不同 sport）；同时会写入 `caption_outputs/_state/video_captioner_state.json`：
+  - `current`：当前正在处理的 sport/event（用于中断后优先恢复）
+  - `processed`：已完成的 sport/event 记录
 - 默认（不加 `--overwrite`）行为：
   - 若 `segment.mp4` / `chunks/chunk_*.mp4` 已存在：直接复用，不重新裁剪。
   - 若 `chunk_captions.json` 中已有某些 `chunk_index`：跳过这些 chunk，继续生成剩余部分。
@@ -26,6 +29,12 @@
 
 ```bash
 uv run python scripts/generate_captions.py --config video_captioner_config.toml
+```
+
+## 查看进度
+
+```bash
+uv run python scripts/check_video_captioner_progress.py --config video_captioner_config.toml
 ```
 
 主要参数通过 `video_captioner_config.toml` 传递（默认模板在仓库根目录）。常用项：
