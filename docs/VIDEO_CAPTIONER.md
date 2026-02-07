@@ -37,6 +37,14 @@ uv run python scripts/generate_captions.py --config video_captioner_config.toml
 uv run python scripts/check_video_captioner_progress.py --config video_captioner_config.toml
 ```
 
+## 导出检查集
+
+将已完成的 `segment.mp4` / `run_meta.json` / `long_caption.json` 复制到 `caption_checking/`（保持 `sport/event` 目录结构），并生成已完成名单：
+
+```bash
+uv run python scripts/export_caption_checking.py --config video_captioner_config.toml
+```
+
 主要参数通过 `video_captioner_config.toml` 传递（默认模板在仓库根目录）。常用项：
 - `run.model = "fake"`：离线调试（不调用 Gemini）
 - `run.language = "en"`：输出英文（默认就是英文）
