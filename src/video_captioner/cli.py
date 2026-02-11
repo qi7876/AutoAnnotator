@@ -16,8 +16,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path("video_captioner_config.toml"),
-        help="Path to TOML config (default: video_captioner_config.toml).",
+        default=Path("config/video_captioner_config.toml"),
+        help="Path to TOML config (default: config/video_captioner_config.toml).",
     )
     parser.add_argument(
         "--overwrite",

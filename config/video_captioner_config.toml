@@ -2,8 +2,8 @@
 #
 # This file is read by `uv run python scripts/generate_captions.py`.
 
-dataset_root = "caption_data"
-output_root = "caption_outputs"
+dataset_root = "../data/caption_data"
+output_root = "../data/caption_outputs"
 
 [run]
 model = "gemini"        # "gemini" or "fake"

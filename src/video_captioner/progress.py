@@ -42,7 +42,7 @@ class ProgressSummary:
 
 
 def iter_dataset_events(dataset_root: Path) -> list[EventKey]:
-    """Iterate caption_data/Dataset/{sport}/{event}/1.mp4 style datasets."""
+    """Iterate data/caption_data/Dataset/{sport}/{event}/1.mp4 style datasets."""
     keys: list[EventKey] = []
     for sport_dir in sorted(dataset_root.iterdir()):
         if not sport_dir.is_dir():

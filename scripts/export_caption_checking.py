@@ -15,14 +15,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path("video_captioner_config.toml"),
-        help="Path to TOML config (default: video_captioner_config.toml).",
+        default=Path("config/video_captioner_config.toml"),
+        help="Path to TOML config (default: config/video_captioner_config.toml).",
     )
     parser.add_argument(
         "--dest-root",
         type=Path,
-        default=Path("caption_checking"),
-        help="Destination directory (default: caption_checking).",
+        default=Path("data/caption_checking"),
+        help="Destination directory (default: data/caption_checking).",
     )
     parser.add_argument(
         "--overwrite",
@@ -72,4 +72,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

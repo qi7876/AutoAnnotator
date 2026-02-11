@@ -3,7 +3,7 @@
 ## Project Structure & Module Organization
 
 - `src/auto_annotator/`: core library (adapters, annotators, Gemini client, config, utils).
-- `src/video_captioner/`: generates dense captions for `caption_data/` videos (see `docs/VIDEO_CAPTIONER.md`).
+- `src/video_captioner/`: generates dense captions for `data/caption_data/` videos (see `docs/VIDEO_CAPTIONER.md`).
 - `src/bbox_fixer/`, `src/osr_fixer/`: review/fix tools (GUI/CLI) for annotation artifacts.
 - `scripts/`: runnable utilities (batch processing, dataset maintenance, caption generation).
 - `config/`: runtime config (`config.yaml`) and prompt templates (`config/prompts/`, `config/caption_prompts/`).
@@ -20,7 +20,7 @@ uv sync --extra dev             # install dev tooling (pytest/ruff/black)
 uv run pytest                   # run full test suite
 uv run pytest tests/test_config.py
 uv run python scripts/batch_processing.py
-uv run python scripts/generate_captions.py --config video_captioner_config.toml
+uv run python scripts/generate_captions.py --config config/video_captioner_config.toml
 uv run ruff check .             # lint (dev extra)
 uv run black .                  # format (dev extra)
 ```

@@ -1,6 +1,6 @@
 # Video Captioner
 
-该工具用于处理 `caption_data/Dataset/{sport}/{event}/1.mp4`，自动生成视频 Caption（短片段 + 长片段密集解说）。
+该工具用于处理 `data/caption_data/Dataset/{sport}/{event}/1.mp4`，自动生成视频 Caption（短片段 + 长片段密集解说）。
 
 ## 工作流程
 
@@ -16,7 +16,7 @@
 ## 增量恢复（Resume）
 
 - 运行过程中会**增量写入** `chunk_captions.json`（每完成一个 chunk 就落盘一次），因此进程中断后可直接重跑继续。
-- 处理顺序默认会**打乱并跨 sport 交错**（更均匀覆盖不同 sport）；同时会写入 `caption_outputs/_state/video_captioner_state.json`：
+- 处理顺序默认会**打乱并跨 sport 交错**（更均匀覆盖不同 sport）；同时会写入 `data/caption_outputs/_state/video_captioner_state.json`：
   - `current`：当前正在处理的 sport/event（用于中断后优先恢复）
   - `processed`：已完成的 sport/event 记录
 - 默认（不加 `--overwrite`）行为：
@@ -28,24 +28,24 @@
 ## 运行方式
 
 ```bash
-uv run python scripts/generate_captions.py --config video_captioner_config.toml
+uv run python scripts/generate_captions.py --config config/video_captioner_config.toml
 ```
 
 ## 查看进度
 
 ```bash
-uv run python scripts/check_video_captioner_progress.py --config video_captioner_config.toml
+uv run python scripts/check_video_captioner_progress.py --config config/video_captioner_config.toml
 ```
 
 ## 导出检查集
 
-将已完成的 `segment.mp4` / `run_meta.json` / `long_caption.json` 复制到 `caption_checking/`（保持 `sport/event` 目录结构），并生成已完成名单：
+将已完成的 `segment.mp4` / `run_meta.json` / `long_caption.json` 复制到 `data/caption_checking/`（保持 `sport/event` 目录结构），并生成已完成名单：
 
 ```bash
-uv run python scripts/export_caption_checking.py --config video_captioner_config.toml
+uv run python scripts/export_caption_checking.py --config config/video_captioner_config.toml
 ```
 
-主要参数通过 `video_captioner_config.toml` 传递（默认模板在仓库根目录）。常用项：
+主要参数通过 `config/video_captioner_config.toml` 传递（默认模板在 `config/` 目录）。常用项：
 - `run.model = "fake"`：离线调试（不调用 Gemini）
 - `run.language = "en"`：输出英文（默认就是英文）
 - `run.sport/run.event`：只处理某个 sport/event
@@ -58,7 +58,7 @@ uv run python scripts/export_caption_checking.py --config video_captioner_config
 
 ## 输出目录结构
 
-默认输出到 `caption_outputs/{sport}/{event}/`：
+默认输出到 `data/caption_outputs/{sport}/{event}/`：
 - `segment.mp4`：抽取的长片段
 - `chunks/chunk_XXX.mp4`：按约 60 秒切分的短片段
 - `chunk_captions.json`：每个短片段的结构化 Caption（含帧区间与原视频帧映射）

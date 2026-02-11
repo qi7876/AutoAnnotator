@@ -64,8 +64,8 @@ class RetryConfig(BaseModel):
 class VideoCaptionerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    dataset_root: Path = Field(default=Path("caption_data"))
-    output_root: Path = Field(default=Path("caption_outputs"))
+    dataset_root: Path = Field(default=Path("../data/caption_data"))
+    output_root: Path = Field(default=Path("../data/caption_outputs"))
 
     run: RunConfig = Field(default_factory=RunConfig)
     segment: SegmentConfig = Field(default_factory=SegmentConfig)

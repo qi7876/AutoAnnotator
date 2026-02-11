@@ -1,4 +1,4 @@
-"""End-to-end pipeline to generate captions for caption_data videos."""
+"""End-to-end pipeline to generate captions for data/caption_data videos."""
 
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ class EventVideo:
 
 
 def resolve_dataset_root(path: Path) -> Path:
-    """Accept either caption_data or caption_data/Dataset; return the dataset root."""
+    """Accept either data/caption_data or data/caption_data/Dataset; return dataset root."""
     if (path / "Dataset").is_dir():
         return path / "Dataset"
     return path

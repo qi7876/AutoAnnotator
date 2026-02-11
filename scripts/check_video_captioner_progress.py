@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Check Video Captioner progress from caption_outputs on disk.
+"""Check Video Captioner progress from data/caption_outputs on disk.
 
 This script scans:
-- Dataset: caption_data/Dataset/{sport}/{event}/1.mp4
-- Outputs: caption_outputs/{sport}/{event}/long_caption.json (completed)
+- Dataset: data/caption_data/Dataset/{sport}/{event}/1.mp4
+- Outputs: data/caption_outputs/{sport}/{event}/long_caption.json (completed)
 
 It reports how many sport/event have finished, plus total annotated duration and caption span count.
 """
@@ -24,14 +24,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path("video_captioner_config.toml"),
-        help="Path to TOML config (default: video_captioner_config.toml).",
+        default=Path("config/video_captioner_config.toml"),
+        help="Path to TOML config (default: config/video_captioner_config.toml).",
     )
     parser.add_argument(
         "--dataset-root",
         type=Path,
         default=None,
-        help="Override dataset root (caption_data or caption_data/Dataset).",
+        help="Override dataset root (data/caption_data or data/caption_data/Dataset).",
     )
     parser.add_argument(
         "--output-root",
@@ -134,4 +134,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
