@@ -45,7 +45,6 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "av" },
-    { name = "decord" },
     { name = "google-cloud-storage" },
     { name = "google-genai" },
     { name = "httpx", extra = ["socks"] },
@@ -69,6 +68,7 @@ dependencies = [
 [package.optional-dependencies]
 dev = [
     { name = "black" },
+    { name = "decord" },
     { name = "pyinstaller" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -79,7 +79,7 @@ dev = [
 requires-dist = [
     { name = "av", specifier = ">=16.0.1" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
-    { name = "decord", specifier = ">=0.6.0" },
+    { name = "decord", marker = "extra == 'dev'", specifier = ">=0.6.0" },
     { name = "google-cloud-storage", specifier = ">=2.19.0" },
     { name = "google-genai", specifier = ">=1.55.0" },
     { name = "httpx", extras = ["socks"], specifier = ">=0.28.1" },

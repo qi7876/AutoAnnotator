@@ -24,7 +24,6 @@ dependencies = [
     "loguru>=0.7.3",
     "iopath>=0.1.10",
     "scipy>=1.16.3",
-    "decord>=0.6.0",
     "google-cloud-storage>=2.19.0",
     "PySide6>=6.6.0",
     "tqdm>=4.66.0",
@@ -37,6 +36,7 @@ dev = [
     "black>=23.0.0",
     "ruff>=0.1.0",
     "pyinstaller>=6.17.0",
+    "decord>=0.6.0",
 ]
 
 [[tool.uv.index]]
