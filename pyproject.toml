@@ -27,6 +27,7 @@ dependencies = [
     "google-cloud-storage>=2.19.0",
     "PySide6>=6.6.0",
     "tqdm>=4.66.0",
+    "decord>=0.6.0",
 ]
 
 [project.optional-dependencies]

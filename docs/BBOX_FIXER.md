@@ -47,6 +47,7 @@ uv run python scripts/bbox_fixer_cli.py
 - **切换 clip**：左右两侧按钮
 - **编辑框**：拖动左上角/右下角控制点
 - **缩放**：Fit/Zoom+/Zoom- 按钮
+- **重新跟踪**：点击 “从此帧重跟踪” 将使用 SAM2 跟踪器从当前帧一路自动生成到任务窗口结束帧的 MOT 框；需要提前准备好 `auto_annotator/annotators/sam2` 权重
 - **保存时机**：
   - 切换 clip 时自动保存
   - 关闭窗口时自动保存

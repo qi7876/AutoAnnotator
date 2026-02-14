@@ -6,13 +6,18 @@ import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import cv2
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from .mot_io import MotBox, MotStore
 from .state import EditorState
+
+try:
+    from auto_annotator.annotators.tracker import ObjectTracker
+except Exception:  # pragma: no cover - tracker is optional at runtime
+    ObjectTracker = None
 
 
 @dataclass
@@ -209,6 +214,8 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.total_frames = 1
         self._last_empty_notice: Optional[int] = None
         self.reviewed = False
+        self._annotation_cache: Dict[Path, dict] = {}
+        self._retrack_worker: Optional["RetrackWorker"] = None
 
         self._build_ui()
         self._load_clip(self.clip_entries[self.clip_index])
@@ -241,6 +248,8 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.frame_input.setFixedWidth(80)
         self.frame_input.setPlaceholderText("Frame")
         self.frame_go_btn = QtWidgets.QPushButton("Go")
+        self.retrack_btn = QtWidgets.QPushButton("从此帧重跟踪")
+        self.retrack_btn.setEnabled(ObjectTracker is not None)
 
         self.prev_clip_btn.clicked.connect(self.prev_clip)
         self.next_clip_btn.clicked.connect(self.next_clip)
@@ -251,6 +260,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.fit_btn.clicked.connect(self.fit_view)
         self.zoom_in_btn.clicked.connect(self.zoom_in)
         self.zoom_out_btn.clicked.connect(self.zoom_out)
+        self.retrack_btn.clicked.connect(self.retrack_from_current_frame)
 
         controls.addWidget(self.prev_clip_btn)
         controls.addStretch(1)
@@ -262,6 +272,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         controls.addWidget(self.frame_go_btn)
         controls.addWidget(self.next_frame_btn)
         controls.addStretch(1)
+        controls.addWidget(self.retrack_btn)
         controls.addWidget(self.next_clip_btn)
 
         layout.addLayout(controls)
@@ -558,6 +569,176 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.clip_index += 1
         self._load_clip(self.clip_entries[self.clip_index])
 
+    def retrack_from_current_frame(self) -> None:
+        if ObjectTracker is None:
+            self.log("SAM2 跟踪依赖未就绪，无法重新跟踪。")
+            return
+        if self._retrack_worker is not None:
+            self.log("已有重跟踪任务运行中，请稍候。")
+            return
+        clip = self.clip_entries[self.clip_index]
+        boxes = self.frame_view.sync_boxes()
+        if not boxes:
+            self.log("当前帧没有可用框，无法作为重新跟踪的起点。")
+            return
+        window = self._get_annotation_window(clip)
+        if window is None:
+            self.log("无法解析该任务的时间窗口，取消重新跟踪。")
+            return
+        window_start, window_end = window
+        window_end = min(window_end, max(0, self.total_frames - 1))
+        start_frame = max(window_start, self.frame_index - 1)
+        if start_frame > window_end:
+            self.log(
+                f"当前帧 {self.frame_index} 超过任务窗口 (1-{window_end + 1})，取消重新跟踪。"
+            )
+            return
+        initial_bboxes: List[dict] = []
+        track_id_map: Dict[int, int] = {}
+        object_idx = 0
+        for box in boxes:
+            xtl = float(box.left)
+            ytl = float(box.top)
+            xbr = xtl + float(box.width)
+            ybr = ytl + float(box.height)
+            if xbr <= xtl or ybr <= ytl:
+                continue
+            initial_bboxes.append({
+                "bbox": [xtl, ytl, xbr, ybr],
+                "label": f"track-{box.track_id}",
+            })
+            track_id_map[object_idx] = box.track_id
+            object_idx += 1
+        if not initial_bboxes:
+            self.log("当前帧的框尺寸无效，无法重新跟踪。")
+            return
+        clip_key = self._clip_key(clip)
+        self._retrack_worker = RetrackWorker(
+            video_path=clip.video_path,
+            clip_key=clip_key,
+            start_frame=start_frame,
+            end_frame=window_end,
+            first_bboxes=initial_bboxes,
+            track_id_map=track_id_map,
+        )
+        self._retrack_worker.result_ready.connect(self._handle_retrack_result)
+        self._retrack_worker.error.connect(self._handle_retrack_error)
+        self._retrack_worker.finished.connect(self._clear_retrack_worker)
+        self.retrack_btn.setEnabled(False)
+        self.log(
+            f"开始重新跟踪：帧 {start_frame + 1}-{window_end + 1} ({clip.clip_id}). 这可能需要一些时间。"
+        )
+        self._retrack_worker.start()
+
+    def _handle_retrack_result(self, payload: dict) -> None:
+        clip = self.clip_entries[self.clip_index]
+        payload_key_raw = payload.get("clip_key")
+        if isinstance(payload_key_raw, (list, tuple)):
+            payload_key = tuple(payload_key_raw)
+        else:
+            payload_key = None
+        if payload_key != self._clip_key(clip):
+            self.log("收到的跟踪结果与当前 clip 不匹配，已忽略。")
+            return
+        objects = payload.get("objects", [])
+        start_frame = int(payload.get("start_frame", 0))
+        end_frame = int(payload.get("end_frame", -1))
+        track_id_map = payload.get("track_id_map", {})
+        if end_frame < start_frame:
+            self.log("跟踪结果帧范围无效，已忽略。")
+            return
+        updated_frames = 0
+        for frame_idx in range(start_frame, end_frame + 1):
+            mot_frame = frame_idx + 1
+            if mot_frame > self.total_frames:
+                break
+            boxes: List[MotBox] = []
+            for obj in objects:
+                obj_id = obj.get("id")
+                frames = obj.get("frames", {})
+                bbox = frames.get(frame_idx) or frames.get(str(frame_idx))
+                if not bbox or len(bbox) != 4:
+                    continue
+                left, top, right, bottom = map(float, bbox)
+                width = max(0.0, right - left)
+                height = max(0.0, bottom - top)
+                if width <= 0 or height <= 0:
+                    continue
+                track_id = track_id_map.get(obj_id, obj_id + 1)
+                boxes.append(
+                    MotBox(
+                        frame=mot_frame,
+                        track_id=track_id,
+                        left=left,
+                        top=top,
+                        width=width,
+                        height=height,
+                    )
+                )
+            self.store.set_frame(mot_frame, boxes)
+            if boxes:
+                updated_frames += 1
+        if updated_frames == 0:
+            self.log("跟踪完成，但没有生成可用的框。")
+        else:
+            self.log(
+                f"重新跟踪完成，更新 {updated_frames} 帧。记得检查结果并保存。"
+            )
+            self._render_frame()
+            self._save_current_clip()
+
+    def _handle_retrack_error(self, message: str) -> None:
+        self.log(f"重新跟踪失败：{message}")
+
+    def _clear_retrack_worker(self) -> None:
+        self.retrack_btn.setEnabled(ObjectTracker is not None)
+        self._retrack_worker = None
+
+    def _clip_key(self, clip: ClipEntry) -> Tuple[str, str, str, str]:
+        return (clip.sport, clip.event, clip.clip_id, clip.task_name)
+
+    def _get_annotation_window(self, clip: ClipEntry) -> Optional[Tuple[int, int]]:
+        data = self._annotation_cache.get(clip.json_path)
+        if data is None:
+            try:
+                data = json.loads(clip.json_path.read_text(encoding="utf-8"))
+                self._annotation_cache[clip.json_path] = data
+            except Exception as exc:
+                self.log(f"读取 {clip.json_path} 失败：{exc}")
+                return None
+        anns = data.get("annotations", [])
+        if not isinstance(anns, list) or clip.ann_index >= len(anns):
+            return None
+        ann = anns[clip.ann_index]
+        if not isinstance(ann, dict):
+            return None
+        q_window = ann.get("Q_window_frame")
+        if isinstance(q_window, list) and len(q_window) == 2:
+            try:
+                start = int(q_window[0])
+                end = int(q_window[1])
+                return max(0, start), max(start, end)
+            except (TypeError, ValueError):
+                pass
+        a_window = ann.get("A_window_frame")
+        if isinstance(a_window, list) and a_window:
+            min_start: Optional[int] = None
+            max_end: Optional[int] = None
+            for entry in a_window:
+                if not isinstance(entry, str) or "-" not in entry:
+                    continue
+                try:
+                    start_str, end_str = entry.split("-", 1)
+                    start = int(start_str)
+                    end = int(end_str)
+                except ValueError:
+                    continue
+                min_start = start if min_start is None else min(min_start, start)
+                max_end = end if max_end is None else max(max_end, end)
+            if min_start is not None and max_end is not None:
+                return max(0, min_start), max(min_start, max_end)
+        return 0, max(0, self.total_frames - 1)
+
 
 def run_app(dataset_root: Path, output_root: Path, state_path: Path) -> None:
     app = QtWidgets.QApplication(sys.argv)
@@ -565,3 +746,47 @@ def run_app(dataset_root: Path, output_root: Path, state_path: Path) -> None:
     window.resize(1200, 900)
     window.show()
     sys.exit(app.exec())
+
+
+class RetrackWorker(QtCore.QThread):
+    result_ready = QtCore.Signal(dict)
+    error = QtCore.Signal(str)
+
+    def __init__(
+        self,
+        video_path: Path,
+        clip_key: Tuple[str, str, str, str],
+        start_frame: int,
+        end_frame: int,
+        first_bboxes: List[dict],
+        track_id_map: Dict[int, int],
+    ) -> None:
+        super().__init__()
+        self.video_path = video_path
+        self.clip_key = clip_key
+        self.start_frame = start_frame
+        self.end_frame = end_frame
+        self.first_bboxes = first_bboxes
+        self.track_id_map = track_id_map
+
+    def run(self) -> None:
+        try:
+            tracker = ObjectTracker() if ObjectTracker else None
+            if tracker is None:
+                raise RuntimeError("ObjectTracker 未初始化")
+            result = tracker.track_from_first_bbox(
+                video_path=self.video_path,
+                first_bboxes_with_label=self.first_bboxes,
+                start_frame=self.start_frame,
+                end_frame=self.end_frame,
+            )
+            payload = {
+                "clip_key": self.clip_key,
+                "objects": result.objects,
+                "start_frame": result.start_frame,
+                "end_frame": result.end_frame,
+                "track_id_map": self.track_id_map,
+            }
+            self.result_ready.emit(payload)
+        except Exception as exc:  # pragma: no cover - UI thread logs error
+            self.error.emit(str(exc))
