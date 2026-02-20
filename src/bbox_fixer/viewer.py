@@ -6,7 +6,7 @@ import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import cv2
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -33,6 +33,7 @@ class OpenCVVideoReader:
         self._cap = cv2.VideoCapture(str(video_path))
         if not self._cap.isOpened():
             raise ValueError(f"Failed to open video: {video_path}")
+        self.fps = float(self._cap.get(cv2.CAP_PROP_FPS) or 0.0)
 
         frame_count = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
         if frame_count <= 0:
@@ -49,6 +50,9 @@ class OpenCVVideoReader:
             frame_count = count
 
         self.frame_count = max(1, frame_count)
+        self.duration_sec: Optional[float] = None
+        if self.fps > 0:
+            self.duration_sec = self.frame_count / self.fps
         self._last_index: int | None = None
 
     def close(self) -> None:
@@ -201,6 +205,8 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         if not self.clip_entries:
             raise RuntimeError("No clips found in dataset.")
 
+        self._selector_index = self._build_selector_index()
+        self._updating_selectors = False
         self.clip_index = max(0, min(self.state.clip_index, len(self.clip_entries) - 1))
         self.frame_index = max(1, self.state.frame_index)
 
@@ -216,22 +222,42 @@ class MotEditorWindow(QtWidgets.QMainWindow):
     def _build_ui(self) -> None:
         self.setWindowTitle("BBoxFixer")
         central = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout(central)
+        layout = QtWidgets.QHBoxLayout(central)
 
-        self.frame_view = FrameView()
-        layout.addWidget(self.frame_view, stretch=1)
+        left_panel = QtWidgets.QWidget()
+        left_panel.setMinimumWidth(380)
+        left_panel.setMaximumWidth(520)
+        left_layout = QtWidgets.QVBoxLayout(left_panel)
 
-        self.log_box = QtWidgets.QTextEdit()
-        self.log_box.setReadOnly(True)
-        self.log_box.setFixedHeight(120)
-        layout.addWidget(self.log_box)
+        selector_group = QtWidgets.QGroupBox("Selection")
+        selector_form = QtWidgets.QFormLayout(selector_group)
+        self.sport_combo = QtWidgets.QComboBox()
+        self.event_combo = QtWidgets.QComboBox()
+        self.clip_combo = QtWidgets.QComboBox()
+        self.annotation_combo = QtWidgets.QComboBox()
+        selector_form.addRow("Sport", self.sport_combo)
+        selector_form.addRow("Event", self.event_combo)
+        selector_form.addRow("Clip", self.clip_combo)
+        selector_form.addRow("Annotation", self.annotation_combo)
+        left_layout.addWidget(selector_group)
+
+        info_group = QtWidgets.QGroupBox("Clip Info")
+        info_form = QtWidgets.QFormLayout(info_group)
+        self.video_length_value = QtWidgets.QLabel("-")
+        self.tracking_length_value = QtWidgets.QLabel("-")
+        self.tracking_start_value = QtWidgets.QLabel("-")
+        self.tracking_end_value = QtWidgets.QLabel("-")
+        info_form.addRow("Video Length", self.video_length_value)
+        info_form.addRow("Tracking Length", self.tracking_length_value)
+        info_form.addRow("Tracking Start", self.tracking_start_value)
+        info_form.addRow("Tracking End", self.tracking_end_value)
+        left_layout.addWidget(info_group)
 
         self.review_checkbox = QtWidgets.QCheckBox("Reviewed")
-        layout.addWidget(self.review_checkbox)
+        left_layout.addWidget(self.review_checkbox)
 
-        controls = QtWidgets.QHBoxLayout()
-        self.prev_clip_btn = QtWidgets.QPushButton("<< Prev Clip")
-        self.next_clip_btn = QtWidgets.QPushButton("Next Clip >>")
+        controls_group = QtWidgets.QGroupBox("Frame Controls")
+        controls = QtWidgets.QGridLayout(controls_group)
         self.prev_frame_btn = QtWidgets.QPushButton("< Prev Frame")
         self.next_frame_btn = QtWidgets.QPushButton("Next Frame >")
         self.fit_btn = QtWidgets.QPushButton("Fit")
@@ -242,8 +268,6 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.frame_input.setPlaceholderText("Frame")
         self.frame_go_btn = QtWidgets.QPushButton("Go")
 
-        self.prev_clip_btn.clicked.connect(self.prev_clip)
-        self.next_clip_btn.clicked.connect(self.next_clip)
         self.prev_frame_btn.clicked.connect(self.prev_frame)
         self.next_frame_btn.clicked.connect(self.next_frame)
         self.frame_go_btn.clicked.connect(self.jump_to_frame)
@@ -251,23 +275,35 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.fit_btn.clicked.connect(self.fit_view)
         self.zoom_in_btn.clicked.connect(self.zoom_in)
         self.zoom_out_btn.clicked.connect(self.zoom_out)
+        self.sport_combo.currentIndexChanged.connect(self._on_sport_changed)
+        self.event_combo.currentIndexChanged.connect(self._on_event_changed)
+        self.clip_combo.currentIndexChanged.connect(self._on_clip_changed)
+        self.annotation_combo.currentIndexChanged.connect(self._on_annotation_changed)
 
-        controls.addWidget(self.prev_clip_btn)
-        controls.addStretch(1)
-        controls.addWidget(self.prev_frame_btn)
-        controls.addWidget(self.fit_btn)
-        controls.addWidget(self.zoom_out_btn)
-        controls.addWidget(self.zoom_in_btn)
-        controls.addWidget(self.frame_input)
-        controls.addWidget(self.frame_go_btn)
-        controls.addWidget(self.next_frame_btn)
-        controls.addStretch(1)
-        controls.addWidget(self.next_clip_btn)
+        controls.addWidget(self.prev_frame_btn, 0, 0)
+        controls.addWidget(self.next_frame_btn, 0, 1)
+        controls.addWidget(self.fit_btn, 1, 0)
+        controls.addWidget(self.zoom_out_btn, 1, 1)
+        controls.addWidget(self.zoom_in_btn, 1, 2)
+        controls.addWidget(self.frame_input, 2, 0)
+        controls.addWidget(self.frame_go_btn, 2, 1)
+        left_layout.addWidget(controls_group)
 
-        layout.addLayout(controls)
+        self.log_box = QtWidgets.QTextEdit()
+        self.log_box.setReadOnly(True)
+        self.log_box.setMinimumHeight(160)
+        left_layout.addWidget(self.log_box, stretch=1)
+
+        layout.addWidget(left_panel, stretch=0)
+
+        self.frame_view = FrameView()
+        layout.addWidget(self.frame_view, stretch=1)
+
         self.setCentralWidget(central)
         self.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
         self.frame_view.setFocus()
+
+        self._sync_selectors_to_entry(self.clip_entries[self.clip_index])
 
         self.prev_frame_shortcut = QtGui.QShortcut(QtGui.QKeySequence("A"), self)
         self.prev_frame_shortcut.setContext(
@@ -298,9 +334,201 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.state.frame_index = self.frame_index
         self.state.save(self.state_path)
 
+    @staticmethod
+    def _clip_sort_key(clip_id: str):
+        return (0, int(clip_id)) if clip_id.isdigit() else (1, clip_id)
+
+    def _build_selector_index(self) -> Dict[str, Dict[str, Dict[str, List[int]]]]:
+        index: Dict[str, Dict[str, Dict[str, List[int]]]] = {}
+        for idx, entry in enumerate(self.clip_entries):
+            sport_map = index.setdefault(entry.sport, {})
+            event_map = sport_map.setdefault(entry.event, {})
+            event_map.setdefault(entry.clip_id, []).append(idx)
+        return index
+
+    def _populate_events(self, sport: str, preferred_event: Optional[str] = None) -> None:
+        events = sorted(self._selector_index.get(sport, {}).keys())
+        self.event_combo.clear()
+        for event in events:
+            self.event_combo.addItem(event, event)
+        if not events:
+            return
+        target = preferred_event if preferred_event in events else events[0]
+        idx = self.event_combo.findData(target)
+        if idx >= 0:
+            self.event_combo.setCurrentIndex(idx)
+
+    def _populate_clips(
+        self, sport: str, event: str, preferred_clip_id: Optional[str] = None
+    ) -> None:
+        clip_ids = sorted(
+            self._selector_index.get(sport, {}).get(event, {}).keys(),
+            key=self._clip_sort_key,
+        )
+        self.clip_combo.clear()
+        for clip_id in clip_ids:
+            self.clip_combo.addItem(clip_id, clip_id)
+        if not clip_ids:
+            return
+        target = preferred_clip_id if preferred_clip_id in clip_ids else clip_ids[0]
+        idx = self.clip_combo.findData(target)
+        if idx >= 0:
+            self.clip_combo.setCurrentIndex(idx)
+
+    def _populate_annotations(
+        self,
+        sport: str,
+        event: str,
+        clip_id: str,
+        preferred_entry_index: Optional[int] = None,
+    ) -> None:
+        entry_indexes = list(
+            self._selector_index.get(sport, {}).get(event, {}).get(clip_id, [])
+        )
+        entry_indexes.sort(
+            key=lambda i: (self.clip_entries[i].ann_index, self.clip_entries[i].task_name)
+        )
+        self.annotation_combo.clear()
+        for entry_index in entry_indexes:
+            entry = self.clip_entries[entry_index]
+            label = f"{entry.task_name} (ann {entry.ann_index})"
+            self.annotation_combo.addItem(label, entry_index)
+        if not entry_indexes:
+            return
+        target = (
+            preferred_entry_index
+            if preferred_entry_index in entry_indexes
+            else entry_indexes[0]
+        )
+        idx = self.annotation_combo.findData(target)
+        if idx >= 0:
+            self.annotation_combo.setCurrentIndex(idx)
+
+    def _sync_selectors_to_entry(self, entry: ClipEntry) -> None:
+        self._updating_selectors = True
+        try:
+            sports = sorted(self._selector_index.keys())
+            self.sport_combo.clear()
+            for sport in sports:
+                self.sport_combo.addItem(sport, sport)
+            sport_idx = self.sport_combo.findData(entry.sport)
+            if sport_idx < 0 and sports:
+                sport_idx = 0
+            if sport_idx >= 0:
+                self.sport_combo.setCurrentIndex(sport_idx)
+
+            sport = self.sport_combo.currentData()
+            if not isinstance(sport, str):
+                return
+
+            self._populate_events(sport, preferred_event=entry.event)
+            event = self.event_combo.currentData()
+            if not isinstance(event, str):
+                return
+
+            self._populate_clips(sport, event, preferred_clip_id=entry.clip_id)
+            clip_id = self.clip_combo.currentData()
+            if not isinstance(clip_id, str):
+                return
+
+            self._populate_annotations(
+                sport,
+                event,
+                clip_id,
+                preferred_entry_index=self.clip_index,
+            )
+        finally:
+            self._updating_selectors = False
+
+    def _selected_entry_index(self) -> Optional[int]:
+        data = self.annotation_combo.currentData()
+        if isinstance(data, int) and 0 <= data < len(self.clip_entries):
+            return data
+        return None
+
+    def _switch_to_entry_index(self, entry_index: int) -> None:
+        if entry_index == self.clip_index and self.video_reader is not None:
+            return
+        if self.video_reader is not None:
+            self._capture_current_frame()
+            self._save_current_clip()
+        self.clip_index = entry_index
+        self._load_clip(self.clip_entries[self.clip_index])
+        self._sync_selectors_to_entry(self.clip_entries[self.clip_index])
+        self._save_state()
+
+    def _switch_to_current_selection(self) -> None:
+        entry_index = self._selected_entry_index()
+        if entry_index is None:
+            return
+        self._switch_to_entry_index(entry_index)
+
+    def _on_sport_changed(self, _index: int = -1) -> None:
+        if self._updating_selectors:
+            return
+        sport = self.sport_combo.currentData()
+        if not isinstance(sport, str):
+            return
+        self._updating_selectors = True
+        try:
+            self._populate_events(sport)
+            event = self.event_combo.currentData()
+            if not isinstance(event, str):
+                return
+            self._populate_clips(sport, event)
+            clip_id = self.clip_combo.currentData()
+            if not isinstance(clip_id, str):
+                return
+            self._populate_annotations(sport, event, clip_id)
+        finally:
+            self._updating_selectors = False
+        self._switch_to_current_selection()
+
+    def _on_event_changed(self, _index: int = -1) -> None:
+        if self._updating_selectors:
+            return
+        sport = self.sport_combo.currentData()
+        event = self.event_combo.currentData()
+        if not isinstance(sport, str) or not isinstance(event, str):
+            return
+        self._updating_selectors = True
+        try:
+            self._populate_clips(sport, event)
+            clip_id = self.clip_combo.currentData()
+            if not isinstance(clip_id, str):
+                return
+            self._populate_annotations(sport, event, clip_id)
+        finally:
+            self._updating_selectors = False
+        self._switch_to_current_selection()
+
+    def _on_clip_changed(self, _index: int = -1) -> None:
+        if self._updating_selectors:
+            return
+        sport = self.sport_combo.currentData()
+        event = self.event_combo.currentData()
+        clip_id = self.clip_combo.currentData()
+        if (
+            not isinstance(sport, str)
+            or not isinstance(event, str)
+            or not isinstance(clip_id, str)
+        ):
+            return
+        self._updating_selectors = True
+        try:
+            self._populate_annotations(sport, event, clip_id)
+        finally:
+            self._updating_selectors = False
+        self._switch_to_current_selection()
+
+    def _on_annotation_changed(self, _index: int = -1) -> None:
+        if self._updating_selectors:
+            return
+        self._switch_to_current_selection()
+
     def _discover_clips(self) -> List[ClipEntry]:
         entries: List[ClipEntry] = []
-        seen_keys: set[tuple[str, str, str, str]] = set()
+        seen_keys: set[tuple[str, str, str, str, int]] = set()
 
         def safe_load_json(path: Path) -> Optional[dict]:
             try:
@@ -348,7 +576,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                     if not mot_entries:
                         continue
                     for task_name, mot_path, ann_idx in mot_entries:
-                        key = (sport_dir.name, event_dir.name, clip_id, task_name)
+                        key = (sport_dir.name, event_dir.name, clip_id, task_name, ann_idx)
                         if key in seen_keys:
                             continue
                         entries.append(
@@ -369,8 +597,9 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             key=lambda e: (
                 e.sport,
                 e.event,
-                int(e.clip_id) if e.clip_id.isdigit() else e.clip_id,
+                self._clip_sort_key(e.clip_id),
                 e.task_name,
+                e.ann_index,
             )
         )
         return entries
@@ -410,7 +639,35 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             f"[{clip.task_name}] ({self.total_frames} frames)"
         )
         self._load_review_flag(clip)
+        self._update_clip_info()
         self._render_frame()
+
+    def _update_clip_info(self) -> None:
+        if self.video_reader and self.video_reader.fps > 0:
+            self.video_length_value.setText(
+                f"{self.total_frames} frames ({self.video_reader.duration_sec:.2f}s @ {self.video_reader.fps:.2f} FPS)"
+            )
+        else:
+            self.video_length_value.setText(f"{self.total_frames} frames (FPS unknown)")
+
+        frames_with_boxes = sorted(
+            frame for frame, boxes in self.store.frames.items() if boxes
+        )
+        if not frames_with_boxes:
+            self.tracking_length_value.setText("0 frames")
+            self.tracking_start_value.setText("-")
+            self.tracking_end_value.setText("-")
+            return
+
+        start_frame = frames_with_boxes[0]
+        end_frame = frames_with_boxes[-1]
+        span_len = end_frame - start_frame + 1
+        boxed_frames = len(frames_with_boxes)
+        self.tracking_length_value.setText(
+            f"{span_len} frames (boxed frames: {boxed_frames})"
+        )
+        self.tracking_start_value.setText(str(start_frame))
+        self.tracking_end_value.setText(str(end_frame))
 
     def _load_review_flag(self, clip: ClipEntry) -> None:
         try:
@@ -454,6 +711,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             box.frame = current_frame
         self.store.set_frame(current_frame, boxes)
         self.reviewed = bool(self.review_checkbox.isChecked())
+        self._update_clip_info()
 
     def _save_current_clip(self) -> None:
         if not self.clip_entries:
@@ -541,22 +799,6 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self._capture_current_frame()
         self.frame_index = target
         self._render_frame()
-
-    def prev_clip(self) -> None:
-        if self.clip_index <= 0:
-            return
-        self._capture_current_frame()
-        self._save_current_clip()
-        self.clip_index -= 1
-        self._load_clip(self.clip_entries[self.clip_index])
-
-    def next_clip(self) -> None:
-        if self.clip_index >= len(self.clip_entries) - 1:
-            return
-        self._capture_current_frame()
-        self._save_current_clip()
-        self.clip_index += 1
-        self._load_clip(self.clip_entries[self.clip_index])
 
 
 def run_app(dataset_root: Path, output_root: Path, state_path: Path) -> None:
