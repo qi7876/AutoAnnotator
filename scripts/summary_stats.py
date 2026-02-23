@@ -8,8 +8,22 @@ from collections import Counter
 from pathlib import Path
 
 from auto_annotator.adapters import InputAdapter
-from auto_annotator.annotators.task_annotators import TaskAnnotatorFactory
 from auto_annotator.config import get_config
+
+SUMMARY_TASKS = [
+    "Object_Segmentation",
+    "ScoreboardSingle",
+    "ScoreboardMultiple",
+    "Objects_Spatial_Relationships",
+    "Spatial_Temporal_Grounding",
+    "Continuous_Actions_Caption",
+    "Continuous_Events_Caption",
+    "Spatial_Imagination",
+    "Temporal_Causal",
+    "Score_Prediction",
+    "AI_Coach",
+    "Commentary",
+]
 
 
 def _iter_metadata_paths(dataset_root: Path) -> list[Path]:
@@ -31,10 +45,11 @@ def main() -> None:
     dataset_root = Path(config.dataset_root)
     output_root = Path(config.project_root) / config.output.temp_dir
 
-    tasks = TaskAnnotatorFactory.get_available_tasks()
+    tasks = SUMMARY_TASKS
     total_tasks = Counter({task: 0 for task in tasks})
     annotated_tasks = Counter({task: 0 for task in tasks})
     unknown_tasks = Counter()
+    extra_metadata_tasks = Counter()
 
     total_clips = 0
     total_frames = 0
@@ -57,6 +72,8 @@ def main() -> None:
 
         for task in metadata.tasks_to_annotate:
             total_tasks[task] += 1
+            if task not in tasks:
+                extra_metadata_tasks[task] += 1
 
     if output_root.exists():
         for out_path in _iter_output_paths(output_root):
@@ -95,9 +112,13 @@ def main() -> None:
     print("Task totals (from tasks_to_annotate)")
     for task in tasks:
         print(f"  {task}: {total_tasks[task]}")
+    if extra_metadata_tasks:
+        print("  Other tasks in metadata:")
+        for task, count in sorted(extra_metadata_tasks.items()):
+            print(f"    {task}: {count}")
     if unknown_tasks:
         print("  Unknown tasks:")
-        for task, count in unknown_tasks.items():
+        for task, count in sorted(unknown_tasks.items()):
             print(f"    {task}: {count}")
     print("")
     print("Annotated outputs (from output JSON files)")

@@ -7,7 +7,7 @@ gemini:
   gcs_bucket: "mllmbenchmark"
   gcs_prefix: ""
   gcs_sync_delete: true
-  model: "gemini-3-flash-preview" # gemini-3-flash-preview, gemini-3-pro-preview
+  model: "gemini-3-pro-preview" # gemini-3-flash-preview, gemini-3-pro-preview, gemini-3.1-pro-preview
   grounding_model: "gemini-robotics-er-1.5-preview"
   model_thinking_level: "high"
   grounding_thinking_budget: -1 # dynamic
@@ -26,7 +26,7 @@ output:
   temp_dir: "data/output/"
 
 batch_processing:
-  num_workers: 3
+  num_workers: 1
   enable_clips: true
   enable_frames: true
 

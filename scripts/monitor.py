@@ -16,7 +16,6 @@ FEISHU_WRITE_URL = (
 )
 
 TASKS = [
-    "Object_Tracking",
     "Object_Segmentation",
     "ScoreboardSingle",
     "ScoreboardMultiple",
@@ -100,11 +99,24 @@ def build_row_values(counts: Dict[str, int]) -> List[int]:
     return [counts.get(task, 0) for task in TASKS]
 
 
+def _column_name(index: int) -> str:
+    if index <= 0:
+        raise ValueError("column index must be positive")
+    letters: list[str] = []
+    n = index
+    while n > 0:
+        n, rem = divmod(n - 1, 26)
+        letters.append(chr(ord("A") + rem))
+    return "".join(reversed(letters))
+
+
 def build_write_range(sheet_id: str, source: int) -> str:
     if source < 1 or source > 8:
         raise ValueError("Source 必须在 1-8 之间")
     row = 1 + source  # source=1 -> row 2
-    return f"{sheet_id}!B{row}:N{row}"
+    start_col_index = 2  # B
+    end_col_index = start_col_index + len(TASKS) - 1
+    return f"{sheet_id}!B{row}:{_column_name(end_col_index)}{row}"
 
 
 def upload_stats_to_feishu(
