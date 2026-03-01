@@ -74,16 +74,15 @@ BBoxFixer 当前把 window 统一当作闭区间处理：
 
 > 说明：不同数据可能混用多种格式；BBoxFixer 会尽量解析常见写法。
 
-### 3.3 `mot_file` 路径与“保存到了哪里”
+### 3.3 MOT TXT 的定位规则（不再使用 JSON 内的 mot_file 路径）
 
-`tracking_bboxes.mot_file` 可能是：
+为避免 JSON 中 `tracking_bboxes.mot_file` 路径过期/指向其它目录导致“保存位置混乱”，BBoxFixer 现在**忽略**该字段，统一按 clip JSON 的同级目录去找 MOT 文件：
 
-- 绝对路径（例如 `/mnt/.../xxx.txt`），或
-- 相对路径（相对 AutoAnnotator 仓库根目录）。
+- clip JSON：`data/output/{sport}/{event}/clips/{clip_id}.json`
+- MOT 目录：`data/output/{sport}/{event}/clips/mot/`
+- MOT 文件命名：优先使用 `{clip_id}_{task_L2}.txt`
 
-BBoxFixer 会按 JSON 里的 `mot_file` 去读/写 MOT 文件：
-
-- 如果你发现“界面保存了但文件没变”，首先确认你正在查看的是否就是 JSON 指向的那个 `mot_file`。
+如果找不到完全匹配的文件名，BBoxFixer 会尝试在 `mot/` 下用 `{clip_id}_*.txt` 做兜底匹配（以便在少量命名不一致时仍能打开）。
 
 ---
 

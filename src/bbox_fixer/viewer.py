@@ -301,6 +301,15 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             self.save_window_btn = QtWidgets.QPushButton("保存窗口")
             self.save_window_btn.clicked.connect(self.save_clip_and_window)
 
+            self.delete_frames_start_input = QtWidgets.QLineEdit()
+            self.delete_frames_start_input.setFixedWidth(70)
+            self.delete_frames_start_input.setPlaceholderText("start0")
+            self.delete_frames_end_input = QtWidgets.QLineEdit()
+            self.delete_frames_end_input.setFixedWidth(70)
+            self.delete_frames_end_input.setPlaceholderText("end0")
+            self.delete_frames_btn = QtWidgets.QPushButton("批量删除帧")
+            self.delete_frames_btn.clicked.connect(self.delete_frames_range_0based)
+
         self.prev_clip_btn.clicked.connect(self.prev_clip)
         self.next_clip_btn.clicked.connect(self.next_clip)
         self.prev_frame_btn.clicked.connect(self.prev_frame)
@@ -317,6 +326,10 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         controls.addWidget(self.prev_clip_btn)
         if self.flagged_mode:
             controls.addWidget(self.save_window_btn)
+            controls.addWidget(QtWidgets.QLabel("删帧(0-based):"))
+            controls.addWidget(self.delete_frames_start_input)
+            controls.addWidget(self.delete_frames_end_input)
+            controls.addWidget(self.delete_frames_btn)
         controls.addStretch(1)
         controls.addWidget(self.prev_frame_btn)
         controls.addWidget(self.fit_btn)
@@ -415,6 +428,17 @@ class MotEditorWindow(QtWidgets.QMainWindow):
 
         repo_root = self.dataset_root.parent.parent
 
+        def sanitize_task_name_for_filename(task_name: str) -> str:
+            # Most task names are already filename-safe (e.g. Spatial_Temporal_Grounding).
+            # Keep this conservative: avoid path traversal and weird separators.
+            return (
+                str(task_name)
+                .replace("/", "_")
+                .replace("\\", "_")
+                .replace(" ", "_")
+                .strip("_")
+            )
+
         def safe_load_json(path: Path) -> Optional[dict]:
             try:
                 return json.loads(path.read_text(encoding="utf-8"))
@@ -427,13 +451,14 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             mot_entries: List[tuple[str, Path, int, Optional[bool], Optional[bool]]] = []
             output = safe_load_json(output_path)
             if output and isinstance(output, dict):
+                clip_id = str(output_path.stem)
+                mot_dir = output_path.parent / "mot"
                 for idx, ann in enumerate(output.get("annotations", []) or []):
                     if not isinstance(ann, dict):
                         continue
                     tracking = ann.get("tracking_bboxes")
                     if not isinstance(tracking, dict):
                         continue
-                    mot_ref = tracking.get("mot_file")
                     task_name = ann.get("task_L2", "")
                     retrack_flag = bool(ann.get("retrack", False))
                     window_flag_raw = ann.get("is_window_consistence")
@@ -444,16 +469,45 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                     )
                     if flagged_only and not (retrack_flag or window_flag is False):
                         continue
-                    if mot_ref:
-                        mot_entries.append(
-                            (
-                                task_name or "tracking",
-                                Path(str(mot_ref)),
-                                idx,
-                                retrack_flag,
-                                window_flag,
-                            )
+
+                    # Ignore JSON's tracking_bboxes.mot_file path. Always resolve MOT TXT
+                    # from the sibling mot/ directory next to this clip JSON.
+                    if not mot_dir.exists():
+                        continue
+                    safe_task = sanitize_task_name_for_filename(task_name or "tracking")
+                    preferred = mot_dir / f"{clip_id}_{safe_task}.txt"
+                    mot_path = None
+                    if preferred.exists():
+                        mot_path = preferred
+                    else:
+                        # Fallback: try to find a unique .txt with prefix clip_id_.
+                        prefix = f"{clip_id}_"
+                        candidates = [
+                            p
+                            for p in mot_dir.glob(f"{prefix}*.txt")
+                            if p.is_file() and p.suffix == ".txt"
+                        ]
+                        if safe_task:
+                            filtered = [p for p in candidates if safe_task in p.name]
+                            if len(filtered) == 1:
+                                mot_path = filtered[0]
+                            elif len(filtered) > 1:
+                                # Choose the shortest match to reduce ambiguity.
+                                mot_path = sorted(filtered, key=lambda p: len(p.name))[0]
+                        if mot_path is None and len(candidates) == 1:
+                            mot_path = candidates[0]
+                    if mot_path is None:
+                        continue
+
+                    mot_entries.append(
+                        (
+                            task_name or "tracking",
+                            mot_path,
+                            idx,
+                            retrack_flag,
+                            window_flag,
                         )
+                    )
             return mot_entries
 
         # 以 output_root 为准遍历 clips JSON（retrack/is_window_consistence 标记来自 JSON）。
@@ -494,9 +548,6 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                         key = (sport_dir.name, event_dir.name, clip_id, task_name)
                         if key in seen_keys:
                             continue
-                        mot_path_abs = mot_path
-                        if not mot_path_abs.is_absolute():
-                            mot_path_abs = repo_root / mot_path
                         entries.append(
                             ClipEntry(
                                 sport_dir.name,
@@ -504,7 +555,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                                 clip_id,
                                 task_name,
                                 clip_path,
-                                mot_path_abs,
+                                mot_path,
                                 output_path,
                                 ann_idx,
                                 retrack_flag,
@@ -794,7 +845,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             self.frame_view.box_items = []
             self.statusBar().showMessage(
                 f"Clip {current_clip.clip_id} [{current_clip.task_name}] "
-                f"Frame {self.frame_index}/{self.total_frames} (read failed)"
+                f"Frame {max(0, self.frame_index - 1)}/{max(0, self.total_frames - 1)} (read failed)"
             )
             return
         frame_rgb = frame
@@ -810,9 +861,60 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage(
             f"Clip {self.clip_entries[self.clip_index].clip_id} "
             f"[{self.clip_entries[self.clip_index].task_name}] "
-            f"Frame {self.frame_index}/{self.total_frames}"
+            f"Frame {max(0, self.frame_index - 1)}/{max(0, self.total_frames - 1)}"
         )
         self._update_mot_ranges_label()
+
+    def delete_frames_range_0based(self) -> None:
+        if not getattr(self, "flagged_mode", False):
+            return
+        if not self.clip_entries:
+            return
+        if not hasattr(self, "delete_frames_start_input") or not hasattr(
+            self, "delete_frames_end_input"
+        ):
+            return
+
+        start_raw = self.delete_frames_start_input.text().strip()
+        end_raw = self.delete_frames_end_input.text().strip()
+        try:
+            start0 = int(start_raw)
+            end0 = int(end_raw)
+        except Exception:
+            self.log("批量删除帧：请输入合法的 start0/end0 整数。")
+            return
+
+        if start0 < 0 or end0 < 0:
+            self.log("批量删除帧：start0/end0 需为非负整数（0-based）。")
+            return
+        if end0 < start0:
+            self.log("批量删除帧：end0 需 >= start0（两端都包含）。")
+            return
+
+        max0 = max(0, int(self.total_frames) - 1)
+        if start0 > max0 or end0 > max0:
+            self.log(f"批量删除帧：范围超出视频长度（允许 0..{max0}）。")
+            return
+
+        # Capture current edits first, then delete the requested range.
+        self._capture_current_frame()
+
+        start1 = start0 + 1
+        end1 = end0 + 1
+        deleted_keys = 0
+        for frame_1 in range(start1, end1 + 1):
+            if frame_1 in self.store.frames:
+                deleted_keys += 1
+            self.store.frames.pop(frame_1, None)
+
+        # Persist immediately; user expects the button to actually delete the frames.
+        self._save_current_clip()
+
+        self.log(
+            f"已批量删除 MOT 帧区间(0-based) [{start0}, {end0}]（含两端），"
+            f"清理了 {deleted_keys} 个有框帧。"
+        )
+        self._render_frame()
 
     def add_box_current_frame(self) -> None:
         if not self.video_reader:
