@@ -137,7 +137,7 @@ class ObjectTracker:
         backend: str = "local",
         model_path: Optional[Path] = None,
         hf_model_id: Optional[str] = None,
-        auto_download: bool = False
+        auto_download: bool = True
     ):
         """
         Initialize object tracker.

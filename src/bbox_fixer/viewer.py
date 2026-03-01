@@ -30,6 +30,8 @@ class ClipEntry:
     mot_path: Path
     json_path: Path
     ann_index: int
+    retrack: Optional[bool] = None
+    is_window_consistence: Optional[bool] = None
 
 
 class OpenCVVideoReader:
@@ -108,6 +110,7 @@ class BoxItem(QtWidgets.QGraphicsRectItem):
         self.setRect(QtCore.QRectF(box.left, box.top, box.width, box.height))
         self.setPen(QtGui.QPen(QtGui.QColor(0, 255, 0), 2))
         self.setZValue(2)
+        self.setFlag(QtWidgets.QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
         self.handle_tl = HandleItem(self, "tl")
         self.handle_br = HandleItem(self, "br")
         self._sync_handles()
@@ -195,14 +198,17 @@ class FrameView(QtWidgets.QGraphicsView):
 
 
 class MotEditorWindow(QtWidgets.QMainWindow):
-    def __init__(self, dataset_root: Path, output_root: Path, state_path: Path):
+    def __init__(
+        self, dataset_root: Path, output_root: Path, state_path: Path, flagged_mode: bool = False
+    ):
         super().__init__()
         self.dataset_root = dataset_root
         self.output_root = output_root
         self.state_path = state_path
+        self.flagged_mode = flagged_mode
         self.state = EditorState.load(state_path)
 
-        self.clip_entries = self._discover_clips()
+        self.clip_entries = self._discover_clips(flagged_only=self.flagged_mode)
         if not self.clip_entries:
             raise RuntimeError("No clips found in dataset.")
 
@@ -218,6 +224,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self._retrack_worker: Optional["RetrackWorker"] = None
 
         self._build_ui()
+        self._populate_flagged_list()
         self._load_clip(self.clip_entries[self.clip_index])
 
     def _build_ui(self) -> None:
@@ -225,8 +232,45 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         central = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(central)
 
+        if self.flagged_mode:
+            flagged_group = QtWidgets.QGroupBox("标记任务 (retrack / window)")
+            fg_layout = QtWidgets.QVBoxLayout(flagged_group)
+            self.flagged_list = QtWidgets.QListWidget()
+            self.flagged_list.itemClicked.connect(self._handle_flagged_selection)
+            self.flagged_list.itemDoubleClicked.connect(self._handle_flagged_selection)
+            fg_layout.addWidget(self.flagged_list)
+            layout.addWidget(flagged_group)
+
         self.frame_view = FrameView()
         layout.addWidget(self.frame_view, stretch=1)
+
+        ann_group = QtWidgets.QGroupBox("Annotation 参考")
+        ann_layout = QtWidgets.QVBoxLayout(ann_group)
+        self.q_window_label = QtWidgets.QLabel("Q_window_frame: -")
+        self.q_window_label.setTextInteractionFlags(
+            QtCore.Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        ann_layout.addWidget(self.q_window_label)
+        self.a_window_label = QtWidgets.QLabel("A_window_frame: -")
+        self.a_window_label.setTextInteractionFlags(
+            QtCore.Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        ann_layout.addWidget(self.a_window_label)
+        self.answer_window_label = QtWidgets.QLabel("answer_window: -")
+        self.answer_window_label.setTextInteractionFlags(
+            QtCore.Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        ann_layout.addWidget(self.answer_window_label)
+        self.mot_ranges_label = QtWidgets.QLabel("MOT 帧区间(有框): -")
+        self.mot_ranges_label.setTextInteractionFlags(
+            QtCore.Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        ann_layout.addWidget(self.mot_ranges_label)
+        self.answer_box = QtWidgets.QTextEdit()
+        self.answer_box.setReadOnly(True)
+        self.answer_box.setFixedHeight(120)
+        ann_layout.addWidget(self.answer_box)
+        layout.addWidget(ann_group)
 
         self.log_box = QtWidgets.QTextEdit()
         self.log_box.setReadOnly(True)
@@ -250,6 +294,12 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.frame_go_btn = QtWidgets.QPushButton("Go")
         self.retrack_btn = QtWidgets.QPushButton("从此帧重跟踪")
         self.retrack_btn.setEnabled(ObjectTracker is not None)
+        self.add_box_btn = QtWidgets.QPushButton("新增框")
+        self.delete_box_btn = QtWidgets.QPushButton("删除框")
+
+        if self.flagged_mode:
+            self.save_window_btn = QtWidgets.QPushButton("保存窗口")
+            self.save_window_btn.clicked.connect(self.save_clip_and_window)
 
         self.prev_clip_btn.clicked.connect(self.prev_clip)
         self.next_clip_btn.clicked.connect(self.next_clip)
@@ -261,8 +311,12 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.zoom_in_btn.clicked.connect(self.zoom_in)
         self.zoom_out_btn.clicked.connect(self.zoom_out)
         self.retrack_btn.clicked.connect(self.retrack_from_current_frame)
+        self.add_box_btn.clicked.connect(self.add_box_current_frame)
+        self.delete_box_btn.clicked.connect(self.delete_selected_boxes_current_frame)
 
         controls.addWidget(self.prev_clip_btn)
+        if self.flagged_mode:
+            controls.addWidget(self.save_window_btn)
         controls.addStretch(1)
         controls.addWidget(self.prev_frame_btn)
         controls.addWidget(self.fit_btn)
@@ -272,6 +326,8 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         controls.addWidget(self.frame_go_btn)
         controls.addWidget(self.next_frame_btn)
         controls.addStretch(1)
+        controls.addWidget(self.add_box_btn)
+        controls.addWidget(self.delete_box_btn)
         controls.addWidget(self.retrack_btn)
         controls.addWidget(self.next_clip_btn)
 
@@ -292,10 +348,54 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         )
         self.next_frame_shortcut.activated.connect(self.next_frame)
 
+    def _populate_flagged_list(self) -> None:
+        if not getattr(self, "flagged_mode", False):
+            return
+        if not hasattr(self, "flagged_list"):
+            return
+        self.flagged_list.clear()
+        for idx, entry in enumerate(self.clip_entries):
+            labels = []
+            if entry.retrack:
+                labels.append("retrack")
+            if entry.is_window_consistence is False:
+                labels.append("window_inconsistent")
+            flag_text = ",".join(labels) if labels else "-"
+            text = (
+                f"{entry.sport}/{entry.event}/{entry.clip_id} "
+                f"[{entry.task_name}] {flag_text}"
+            )
+            item = QtWidgets.QListWidgetItem(text)
+            item.setData(QtCore.Qt.ItemDataRole.UserRole, idx)
+            self.flagged_list.addItem(item)
+        if self.clip_entries:
+            self.flagged_list.setCurrentRow(self.clip_index)
+
+    def _handle_flagged_selection(self, item: QtWidgets.QListWidgetItem) -> None:
+        if item is None:
+            return
+        idx_raw = item.data(QtCore.Qt.ItemDataRole.UserRole)
+        try:
+            idx = int(idx_raw)
+        except (TypeError, ValueError):
+            return
+        if idx < 0 or idx >= len(self.clip_entries):
+            return
+        if idx == self.clip_index:
+            return
+        self._capture_current_frame()
+        self._save_current_clip()
+        self.clip_index = idx
+        self._load_clip(self.clip_entries[self.clip_index])
+
     def log(self, message: str) -> None:
         self.log_box.append(message)
 
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
+        if event.key() in (QtCore.Qt.Key.Key_Delete, QtCore.Qt.Key.Key_Backspace):
+            self.delete_selected_boxes_current_frame()
+            event.accept()
+            return
         super().keyPressEvent(event)
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
@@ -309,9 +409,11 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.state.frame_index = self.frame_index
         self.state.save(self.state_path)
 
-    def _discover_clips(self) -> List[ClipEntry]:
+    def _discover_clips(self, flagged_only: bool = False) -> List[ClipEntry]:
         entries: List[ClipEntry] = []
         seen_keys: set[tuple[str, str, str, str]] = set()
+
+        repo_root = self.dataset_root.parent.parent
 
         def safe_load_json(path: Path) -> Optional[dict]:
             try:
@@ -319,8 +421,10 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             except Exception:
                 return None
 
-        def clip_requires_mot(output_path: Path) -> List[tuple[str, Path, int]]:
-            mot_entries: List[tuple[str, Path, int]] = []
+        def clip_requires_mot(
+            output_path: Path,
+        ) -> List[tuple[str, Path, int, Optional[bool], Optional[bool]]]:
+            mot_entries: List[tuple[str, Path, int, Optional[bool], Optional[bool]]] = []
             output = safe_load_json(output_path)
             if output and isinstance(output, dict):
                 for idx, ann in enumerate(output.get("annotations", []) or []):
@@ -331,13 +435,30 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                         continue
                     mot_ref = tracking.get("mot_file")
                     task_name = ann.get("task_L2", "")
+                    retrack_flag = bool(ann.get("retrack", False))
+                    window_flag_raw = ann.get("is_window_consistence")
+                    window_flag = (
+                        bool(window_flag_raw)
+                        if isinstance(window_flag_raw, bool)
+                        else None
+                    )
+                    if flagged_only and not (retrack_flag or window_flag is False):
+                        continue
                     if mot_ref:
                         mot_entries.append(
-                            (task_name or "tracking", Path(str(mot_ref)), idx)
+                            (
+                                task_name or "tracking",
+                                Path(str(mot_ref)),
+                                idx,
+                                retrack_flag,
+                                window_flag,
+                            )
                         )
             return mot_entries
 
-        for sport_dir in self.dataset_root.iterdir():
+        # 以 output_root 为准遍历 clips JSON（retrack/is_window_consistence 标记来自 JSON）。
+        # Dataset 仅用于定位对应视频文件。
+        for sport_dir in self.output_root.iterdir():
             if not sport_dir.is_dir():
                 continue
             for event_dir in sport_dir.iterdir():
@@ -346,22 +467,36 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                 clips_dir = event_dir / "clips"
                 if not clips_dir.exists():
                     continue
-                for clip_path in clips_dir.glob("*.mp4"):
-                    clip_id = clip_path.stem
-                    output_path = (
-                        self.output_root
-                        / sport_dir.name
-                        / event_dir.name
-                        / "clips"
-                        / f"{clip_id}.json"
-                    )
+                for output_path in clips_dir.glob("*.json"):
+                    clip_id = output_path.stem
                     mot_entries = clip_requires_mot(output_path)
                     if not mot_entries:
                         continue
-                    for task_name, mot_path, ann_idx in mot_entries:
+
+                    clip_path = (
+                        self.dataset_root
+                        / sport_dir.name
+                        / event_dir.name
+                        / "clips"
+                        / f"{clip_id}.mp4"
+                    )
+                    # 没有对应视频则无法在 GUI 中展示，直接跳过。
+                    if not clip_path.exists():
+                        continue
+
+                    for (
+                        task_name,
+                        mot_path,
+                        ann_idx,
+                        retrack_flag,
+                        window_flag,
+                    ) in mot_entries:
                         key = (sport_dir.name, event_dir.name, clip_id, task_name)
                         if key in seen_keys:
                             continue
+                        mot_path_abs = mot_path
+                        if not mot_path_abs.is_absolute():
+                            mot_path_abs = repo_root / mot_path
                         entries.append(
                             ClipEntry(
                                 sport_dir.name,
@@ -369,9 +504,11 @@ class MotEditorWindow(QtWidgets.QMainWindow):
                                 clip_id,
                                 task_name,
                                 clip_path,
-                                mot_path,
+                                mot_path_abs,
                                 output_path,
                                 ann_idx,
+                                retrack_flag,
+                                window_flag,
                             )
                         )
                         seen_keys.add(key)
@@ -402,6 +539,7 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self._last_empty_notice = None
         self.frame_index = 1
         self.store = MotStore.load(clip.mot_path)
+        self._update_mot_ranges_label()
         if self.store.frames:
             first_frame = min(self.store.frames.keys())
             if 1 <= first_frame <= self.total_frames:
@@ -421,7 +559,96 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             f"[{clip.task_name}] ({self.total_frames} frames)"
         )
         self._load_review_flag(clip)
+        self._update_annotation_panel(clip)
         self._render_frame()
+
+    def _get_annotation(self, clip: ClipEntry) -> Optional[dict]:
+        data = self._annotation_cache.get(clip.json_path)
+        if data is None:
+            try:
+                data = json.loads(clip.json_path.read_text(encoding="utf-8"))
+                self._annotation_cache[clip.json_path] = data
+            except Exception as exc:
+                self.log(f"读取 {clip.json_path} 失败：{exc}")
+                return None
+        anns = data.get("annotations", [])
+        if not isinstance(anns, list) or clip.ann_index >= len(anns):
+            return None
+        ann = anns[clip.ann_index]
+        if not isinstance(ann, dict):
+            return None
+        return ann
+
+    def _update_annotation_panel(self, clip: ClipEntry) -> None:
+        ann = self._get_annotation(clip)
+        if ann is None:
+            self.q_window_label.setText("Q_window_frame: -")
+            self.a_window_label.setText("A_window_frame: -")
+            self.answer_window_label.setText("answer_window: -")
+            self.mot_ranges_label.setText("MOT 帧区间(有框): -")
+            self.answer_box.setPlainText("")
+            return
+
+        q_window = ann.get("Q_window_frame")
+        if isinstance(q_window, list) and len(q_window) == 2:
+            self.q_window_label.setText(f"Q_window_frame: [{q_window[0]}, {q_window[1]}]")
+        else:
+            self.q_window_label.setText("Q_window_frame: -")
+
+        a_window = ann.get("A_window_frame")
+        if isinstance(a_window, list) and a_window:
+            self.a_window_label.setText(f"A_window_frame: {a_window}")
+        else:
+            self.a_window_label.setText("A_window_frame: -")
+
+        answer_window = ann.get("answer_window")
+        if isinstance(answer_window, list) and answer_window:
+            self.answer_window_label.setText(f"answer_window: {answer_window}")
+        else:
+            self.answer_window_label.setText("answer_window: -")
+
+        self._update_mot_ranges_label()
+
+        answer = ann.get("answer")
+        if isinstance(answer, list):
+            lines = [f"{i + 1}. {str(v)}" for i, v in enumerate(answer)]
+            self.answer_box.setPlainText("\n".join(lines))
+        elif isinstance(answer, str):
+            self.answer_box.setPlainText(answer)
+        else:
+            self.answer_box.setPlainText("")
+
+    def _update_mot_ranges_label(self) -> None:
+        if not hasattr(self, "mot_ranges_label"):
+            return
+        frames_with_boxes = [
+            int(frame)
+            for frame, boxes in (self.store.frames or {}).items()
+            if boxes
+        ]
+        frames_with_boxes.sort()
+        if not frames_with_boxes:
+            self.mot_ranges_label.setText("MOT 帧区间(有框): -")
+            return
+
+        ranges: List[tuple[int, int]] = []
+        start = prev = frames_with_boxes[0]
+        for f in frames_with_boxes[1:]:
+            if f == prev + 1:
+                prev = f
+                continue
+            ranges.append((start, prev))
+            start = prev = f
+        ranges.append((start, prev))
+
+        parts = []
+        for a, b in ranges:
+            a0 = max(0, a - 1)
+            b0 = max(0, b - 1)
+            parts.append(str(a0) if a0 == b0 else f"{a0}-{b0}")
+        self.mot_ranges_label.setText(
+            f"MOT 帧区间(有框, 0-based): {', '.join(parts)}"
+        )
 
     def _load_review_flag(self, clip: ClipEntry) -> None:
         try:
@@ -473,6 +700,89 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         self.store.save(current_clip.mot_path)
         self._save_review_flag(current_clip)
 
+    def save_clip_and_window(self) -> None:
+        if not self.clip_entries:
+            return
+        self._capture_current_frame()
+        self._save_current_clip()
+        clip = self.clip_entries[self.clip_index]
+
+        # 注意：该按钮不会改动 JSON 的窗口范围（A_window_frame/answer_window）。
+        # 仅把 first_bounding_box 同步为“窗口起始帧”对应的 MOT 框坐标。
+        try:
+            data = json.loads(clip.json_path.read_text(encoding="utf-8"))
+            anns = data.get("annotations", [])
+            if not isinstance(anns, list) or clip.ann_index >= len(anns):
+                self.log("JSON annotations 无效，未更新 first_bounding_box。")
+                return
+            ann = anns[clip.ann_index]
+            if not isinstance(ann, dict):
+                self.log("目标 annotation 不是字典，未更新 first_bounding_box。")
+                return
+
+            window = self._get_annotation_window(clip)
+            if window is None:
+                self.log("无法解析任务窗口，未更新 first_bounding_box。")
+                return
+            window_start_0, _window_end_0 = window
+            target_frame_1 = max(1, int(window_start_0) + 1)
+
+            frame_boxes = self.store.get_frame(target_frame_1)
+            if not frame_boxes:
+                self.log(
+                    f"窗口起始帧 {target_frame_1} 没有框，未更新 first_bounding_box。"
+                )
+                return
+
+            existing = ann.get("first_bounding_box")
+            existing_box = None
+            if isinstance(existing, list) and len(existing) == 4:
+                try:
+                    x1, y1, x2, y2 = map(float, existing)
+                    existing_box = (x1, y1, x2, y2)
+                except Exception:
+                    existing_box = None
+
+            def to_xyxy(b: MotBox) -> tuple[float, float, float, float]:
+                x1 = float(b.left)
+                y1 = float(b.top)
+                x2 = x1 + float(b.width)
+                y2 = y1 + float(b.height)
+                return x1, y1, x2, y2
+
+            def center_dist2(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> float:
+                ax = (a[0] + a[2]) / 2.0
+                ay = (a[1] + a[3]) / 2.0
+                bx = (b[0] + b[2]) / 2.0
+                by = (b[1] + b[3]) / 2.0
+                dx = ax - bx
+                dy = ay - by
+                return dx * dx + dy * dy
+
+            chosen = frame_boxes[0]
+            if existing_box is not None:
+                best_d2 = None
+                for cand in frame_boxes:
+                    d2 = center_dist2(existing_box, to_xyxy(cand))
+                    if best_d2 is None or d2 < best_d2:
+                        best_d2 = d2
+                        chosen = cand
+            else:
+                chosen = min(frame_boxes, key=lambda b: b.track_id)
+
+            x1, y1, x2, y2 = to_xyxy(chosen)
+            ann["first_bounding_box"] = [x1, y1, x2, y2]
+            data["annotations"] = anns
+            clip.json_path.write_text(
+                json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            self.log(
+                f"已保存 MOT，并将 first_bounding_box 同步到窗口起始帧 {target_frame_1} (txt 帧从1开始, JSON 从0开始)"
+            )
+        except Exception as exc:
+            self.log(f"保存 first_bounding_box 失败: {exc}")
+
     def _render_frame(self) -> None:
         if not self.video_reader:
             return
@@ -502,6 +812,56 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             f"[{self.clip_entries[self.clip_index].task_name}] "
             f"Frame {self.frame_index}/{self.total_frames}"
         )
+        self._update_mot_ranges_label()
+
+    def add_box_current_frame(self) -> None:
+        if not self.video_reader:
+            self.log("当前没有加载视频，无法新增框。")
+            return
+        frame_rgb = self._read_frame(self.frame_index)
+        if frame_rgb is None:
+            self.log("读取当前帧失败，无法新增框。")
+            return
+        h, w, _ = frame_rgb.shape
+        boxes = self.frame_view.sync_boxes()
+        next_track_id = max([b.track_id for b in boxes], default=0) + 1
+        box_w = max(20.0, w * 0.15)
+        box_h = max(20.0, h * 0.15)
+        left = max(0.0, (w - box_w) / 2.0)
+        top = max(0.0, (h - box_h) / 2.0)
+        new_box = MotBox(
+            frame=self.frame_index,
+            track_id=next_track_id,
+            left=left,
+            top=top,
+            width=box_w,
+            height=box_h,
+        )
+        boxes.append(new_box)
+        self.store.set_frame(self.frame_index, boxes)
+        self.log(
+            f"新增框 track_id={next_track_id} 于帧 {self.frame_index}，可拖动调整后再保存。"
+        )
+        self._render_frame()
+
+    def delete_selected_boxes_current_frame(self) -> None:
+        if not self.video_reader:
+            return
+        selected = [
+            item
+            for item in self.frame_view.scene().selectedItems()
+            if isinstance(item, BoxItem)
+        ]
+        if not selected:
+            self.log("未选中任何框（点击框后再删除）。")
+            return
+        boxes = self.frame_view.sync_boxes()
+        selected_ids = {id(item.box) for item in selected}
+        remaining = [b for b in boxes if id(b) not in selected_ids]
+        deleted = len(boxes) - len(remaining)
+        self.store.set_frame(self.frame_index, remaining)
+        self.log(f"已删除当前帧 {deleted} 个框。")
+        self._render_frame()
 
     def _read_frame(self, frame_index: int):
         if not self.video_reader:
@@ -698,19 +1058,8 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         return (clip.sport, clip.event, clip.clip_id, clip.task_name)
 
     def _get_annotation_window(self, clip: ClipEntry) -> Optional[Tuple[int, int]]:
-        data = self._annotation_cache.get(clip.json_path)
-        if data is None:
-            try:
-                data = json.loads(clip.json_path.read_text(encoding="utf-8"))
-                self._annotation_cache[clip.json_path] = data
-            except Exception as exc:
-                self.log(f"读取 {clip.json_path} 失败：{exc}")
-                return None
-        anns = data.get("annotations", [])
-        if not isinstance(anns, list) or clip.ann_index >= len(anns):
-            return None
-        ann = anns[clip.ann_index]
-        if not isinstance(ann, dict):
+        ann = self._get_annotation(clip)
+        if ann is None:
             return None
         q_window = ann.get("Q_window_frame")
         if isinstance(q_window, list) and len(q_window) == 2:
@@ -721,6 +1070,17 @@ class MotEditorWindow(QtWidgets.QMainWindow):
             except (TypeError, ValueError):
                 pass
         a_window = ann.get("A_window_frame")
+        # 常见格式：A_window_frame = [start, end]（两个数字表示闭区间）。
+        if (
+            isinstance(a_window, list)
+            and len(a_window) == 2
+            and isinstance(a_window[0], (int, float))
+            and isinstance(a_window[1], (int, float))
+        ):
+            start = int(a_window[0])
+            end = int(a_window[1])
+            return max(0, start), max(start, end)
+
         if isinstance(a_window, list) and a_window:
             min_start: Optional[int] = None
             max_end: Optional[int] = None
@@ -740,9 +1100,11 @@ class MotEditorWindow(QtWidgets.QMainWindow):
         return 0, max(0, self.total_frames - 1)
 
 
-def run_app(dataset_root: Path, output_root: Path, state_path: Path) -> None:
+def run_app(
+    dataset_root: Path, output_root: Path, state_path: Path, flagged_mode: bool = False
+) -> None:
     app = QtWidgets.QApplication(sys.argv)
-    window = MotEditorWindow(dataset_root, output_root, state_path)
+    window = MotEditorWindow(dataset_root, output_root, state_path, flagged_mode)
     window.resize(1200, 900)
     window.show()
     sys.exit(app.exec())
