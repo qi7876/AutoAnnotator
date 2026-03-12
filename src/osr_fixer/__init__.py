@@ -1,2 +1,0 @@
-"""OSR Fixer package."""
-
