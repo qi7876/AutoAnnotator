@@ -5,7 +5,7 @@
 ## What it uses from AutoAnnotator config
 
 The script reads `config/config.yaml` through `auto_annotator.get_config()` and reuses:
-- Gemini backend/model/GCS settings (`gemini.*`).
+- Gemini backend/model/generation settings (`gemini.*`).
 - Default concurrency from `batch_processing.num_workers`.
 
 It does **not** require a separate task config file.
@@ -28,6 +28,7 @@ It does **not** require a separate task config file.
 ## Behavior
 
 - Uses full clip frames; no frame-window output.
+- Sends each clip directly as Gemini `inline_data`; it does not stage videos through GCS or the Gemini File API.
 - Supports parallel processing (`--num-workers`) and tqdm progress bar (disable with `--no-progress`).
 - Incremental by default: skips clips that already have a valid `Spatial_Imagination` annotation.
 - Use `--overwrite` to re-run existing ones.

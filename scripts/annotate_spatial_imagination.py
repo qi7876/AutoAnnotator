@@ -385,7 +385,6 @@ def _run_one_job(
     prompt_template: str,
     gemini_client: Any,
 ) -> tuple[bool, Path]:
-    video_file: Any = None
     try:
         prompt = build_spatial_imagination_prompt(
             prompt_template=prompt_template,
@@ -393,8 +392,7 @@ def _run_one_job(
             raw_data=job.raw_data,
         )
         video_path = job.metadata.get_video_path(dataset_root)
-        video_file = gemini_client.upload_video(video_path)
-        raw_result = gemini_client.annotate_video(video_file, prompt)
+        raw_result = gemini_client.annotate_video(video_path, prompt)
         question, answer = normalize_spatial_imagination_response(raw_result)
         annotation = _build_annotation(question, answer)
         output_data = _build_output_data(
@@ -414,9 +412,6 @@ def _run_one_job(
     except Exception as exc:
         logger.error("Failed to annotate %s: %s", job.json_path, exc)
         return False, job.json_path
-    finally:
-        if video_file is not None:
-            gemini_client.cleanup_file(video_file)
 
 
 def annotate_spatial_imagination_batch(
@@ -534,7 +529,7 @@ def parse_args(
     parser = argparse.ArgumentParser(
         description=(
             "Generate Spatial_Imagination annotations from clips based on source_annotation "
-            "(uses AutoAnnotator config for Gemini backend/model/GCS and default concurrency)."
+            "(uses AutoAnnotator config for Gemini backend/model settings and default concurrency)."
         )
     )
     parser.add_argument(

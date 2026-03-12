@@ -246,9 +246,14 @@ class GeminiClient:
             if isinstance(video_file, Path):
                 video_bytes = video_file.read_bytes()
                 mime_type = mimetypes.guess_type(str(video_file))[0] or "video/mp4"
-                video_part = types.Part.from_bytes(
-                    data=video_bytes,
-                    mime_type=mime_type
+                video_part = types.Part(
+                    inline_data=types.Blob(
+                        data=video_bytes,
+                        mime_type=mime_type
+                    ),
+                    video_metadata=types.VideoMetadata(
+                        fps=self.config.gemini.video_sampling_fps
+                    )
                 )
             else:
                 video_part = types.Part(

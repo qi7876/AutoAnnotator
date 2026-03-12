@@ -64,33 +64,42 @@ class FakeGeminiClient:
     def __init__(self, responses: list[Any]):
         self._responses = list(responses)
         self.annotate_calls = 0
-        self.uploaded: list[Path] = []
+        self.upload_calls = 0
+        self.cleanup_calls = 0
+        self.annotate_inputs: list[Any] = []
         self.prompts: list[str] = []
 
     def upload_video(self, video_path: Path) -> Any:
-        self.uploaded.append(video_path)
+        self.upload_calls += 1
         return {"uri": str(video_path)}
 
     def annotate_video(self, video_file: Any, prompt: str) -> Any:
         self.annotate_calls += 1
+        self.annotate_inputs.append(video_file)
         self.prompts.append(prompt)
         index = min(self.annotate_calls - 1, len(self._responses) - 1)
         return self._responses[index]
 
     def cleanup_file(self, file_obj: Any) -> None:
-        return None
+        self.cleanup_calls += 1
 
 
 class FactoryGeminiClient:
     call_lock = threading.Lock()
     call_count = 0
+    upload_call_count = 0
+    cleanup_call_count = 0
 
     @classmethod
     def reset(cls) -> None:
         with cls.call_lock:
             cls.call_count = 0
+            cls.upload_call_count = 0
+            cls.cleanup_call_count = 0
 
     def upload_video(self, video_path: Path) -> Any:
+        with self.call_lock:
+            type(self).upload_call_count += 1
         return {"uri": str(video_path)}
 
     def annotate_video(self, video_file: Any, prompt: str) -> Any:
@@ -99,7 +108,8 @@ class FactoryGeminiClient:
         return {"question": "Q?", "answer": "A."}
 
     def cleanup_file(self, file_obj: Any) -> None:
-        return None
+        with self.call_lock:
+            type(self).cleanup_call_count += 1
 
 
 def test_normalize_spatial_imagination_response_variants() -> None:
@@ -167,6 +177,9 @@ def test_spatial_imagination_batch_writes_output(tmp_path: Path) -> None:
     assert stats.annotated == 1
     assert stats.failed == 0
     assert fake_client.annotate_calls == 1
+    assert fake_client.upload_calls == 0
+    assert fake_client.cleanup_calls == 0
+    assert fake_client.annotate_inputs == [dataset_root / "SportA" / "EventA" / "clips" / "1.mp4"]
     assert "The Serbian player in white under the basket" in fake_client.prompts[0]
 
     out_path = output_root / "SportA" / "EventA" / "clips" / "1.json"
@@ -228,6 +241,7 @@ def test_spatial_imagination_skip_existing_and_overwrite(tmp_path: Path) -> None
     assert stats_skip.annotated == 0
     assert stats_skip.skipped_existing == 1
     assert fake_client.annotate_calls == 0
+    assert fake_client.upload_calls == 0
 
     stats_overwrite = annotate_spatial_imagination_batch(
         dataset_root=dataset_root,
@@ -238,6 +252,8 @@ def test_spatial_imagination_skip_existing_and_overwrite(tmp_path: Path) -> None
         progress=False,
     )
     assert stats_overwrite.annotated == 1
+    assert fake_client.upload_calls == 0
+    assert fake_client.cleanup_calls == 0
     updated = json.loads(out_path.read_text(encoding="utf-8"))
     assert len(updated["annotations"]) == 2
     task_names = {ann["task_L2"] for ann in updated["annotations"]}
@@ -271,3 +287,5 @@ def test_spatial_imagination_parallel_with_factory(tmp_path: Path) -> None:
     assert stats.annotated == 3
     assert stats.failed == 0
     assert FactoryGeminiClient.call_count == 3
+    assert FactoryGeminiClient.upload_call_count == 0
+    assert FactoryGeminiClient.cleanup_call_count == 0
